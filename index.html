@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
-  <link rel="stylesheet" href="styles.css?v=0.5.2" />
+  <link rel="stylesheet" href="styles.css?v=0.6" />
 </head>
 <body>
   <header class="topbar">
@@ -117,6 +117,13 @@
 
         <h2 class="subhead">Active Chat Memory</h2>
         <label>Relationship / Timeline Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
+        <div class="section-title-row">
+          <div>
+            <h2 class="subhead">Auto-Saved Milestones</h2>
+            <p class="hint">Major events detected from this timeline. You can delete anything Noctis saved incorrectly.</p>
+          </div>
+        </div>
+        <div id="milestoneList" class="stack"></div>
 
         <h2 class="subhead">Current Scene</h2>
         <label>Location<input id="sceneLocation" /></label>
@@ -227,6 +234,14 @@
         </label>
         <p class="hint">These limits apply to every character and every chat in Noctis. If a scene drifts toward one, the character should redirect naturally instead of proposing it.</p>
 
+        <h2 class="subhead">Automatic Memory</h2>
+        <label class="toggle-row">
+          <input id="autoMemory" type="checkbox" />
+          <span>Automatically save major continuity milestones</span>
+        </label>
+        <p class="hint">Noctis only runs the memory checker when recent text looks like a major relationship, identity, world, or plot change. This avoids spending a second model request on every single turn.</p>
+        <div id="memoryStatus" class="test-result"></div>
+
         <h2 class="subhead">Generation</h2>
         <label>My-Turn Generator Style
           <textarea id="userTurnStyle" rows="5" placeholder="Example: Keep Amanda's replies natural, first person, concise, playful, and consistent with established canon."></textarea>
@@ -253,6 +268,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=0.5.2"></script>
+  <script src="app.js?v=0.6"></script>
 </body>
 </html>

@@ -125,3 +125,22 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
   gap:6px;
   margin-top:7px;
 }
+
+.toggle-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:11px 12px;
+  background:#0f0b13;
+}
+.toggle-row input{width:auto;margin:0;transform:scale(1.15)}
+.milestone-item{
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px;
+  background:#100c14;
+}
+.milestone-item .milestone-text{line-height:1.45}
+.milestone-item .milestone-meta{margin-top:7px;color:var(--muted);font-size:11px}

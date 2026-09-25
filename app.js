@@ -11,7 +11,7 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const now=()=>new Date().toISOString();
 
 function newChat(title="Main Story"){
-  return {id:uid(),title,messages:[],relationshipMemory:"",scene:{location:"",time:"",state:"",emotion:""},threads:[],createdAt:now(),updatedAt:now()};
+  return {id:uid(),title,messages:[],relationshipMemory:"",milestones:[],scene:{location:"",time:"",state:"",emotion:""},threads:[],createdAt:now(),updatedAt:now()};
 }
 function newCharacter(name="New Character"){
   const chat=newChat();
@@ -45,6 +45,7 @@ const defaultSettings={
   model:"nvidia/nemotron-3-ultra-550b-a55b:free",
   temperature:0.85,
   maxTokens:900,
+  autoMemory:true,
   hardLimits:[
     "Anal sex or anal penetration",
     "Breath play",
@@ -75,6 +76,7 @@ function migrateLegacy(legacy){
   const chat=c.chats[0];
   chat.messages=Array.isArray(legacy?.messages)?legacy.messages:[];
   chat.relationshipMemory=legacy?.memory?.relationship||"";
+  chat.milestones=Array.isArray(legacy?.milestones)?legacy.milestones:[];
   chat.scene={...chat.scene,...(legacy?.scene||{})};
   chat.threads=Array.isArray(legacy?.threads)?legacy.threads:[];
   chat.title="Main Story";
@@ -165,6 +167,7 @@ function activeChat(){
   const c=activeCharacter();
   let ch=c.chats.find(x=>x.id===c.activeChatId);
   if(!ch){ch=c.chats[0]||newChat();if(!c.chats.length)c.chats.push(ch);c.activeChatId=ch.id}
+  if(!Array.isArray(ch.milestones))ch.milestones=[];
   return ch;
 }
 function selectTab(name){
@@ -201,7 +204,9 @@ function renderBasics(){
   $("temperature").value=settings.temperature??0.85;$("maxTokens").value=settings.maxTokens??900;
   if($("userTurnStyle"))$("userTurnStyle").value=settings.userTurnStyle||defaultSettings.userTurnStyle;
   if($("hardLimits"))$("hardLimits").value=settings.hardLimits||defaultSettings.hardLimits;
+  if($("autoMemory"))$("autoMemory").checked=settings.autoMemory!==false;
   updateConnectionStatus();
+  updateMemoryStatus();
 }
 function bindBasics(){
   const charMap={charName:"name",charRole:"role",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
@@ -225,6 +230,7 @@ function bindBasics(){
   });
   if($("userTurnStyle"))$("userTurnStyle").addEventListener("input",e=>{settings.userTurnStyle=e.target.value;saveSettings()});
   if($("hardLimits"))$("hardLimits").addEventListener("input",e=>{settings.hardLimits=e.target.value;saveSettings()});
+  if($("autoMemory"))$("autoMemory").addEventListener("change",e=>{settings.autoMemory=e.target.checked;saveSettings();updateMemoryStatus()});
   $("temperature").addEventListener("input",e=>{settings.temperature=Math.max(0,Math.min(2,Number(e.target.value)||0));saveSettings()});
   $("maxTokens").addEventListener("input",e=>{settings.maxTokens=Math.max(64,Math.min(4096,Number(e.target.value)||900));saveSettings()});
   if($("recoverKeyBtn"))$("recoverKeyBtn").addEventListener("click",()=>{
@@ -270,6 +276,166 @@ function renderEntries(container,list,getList){
     container.appendChild(node);
   });
 }
+
+function updateMemoryStatus(text=""){
+  const el=$("memoryStatus");
+  if(!el)return;
+  if(text){el.textContent=text;return}
+  el.textContent=settings.autoMemory===false
+    ?"Automatic milestone memory is off."
+    :"Automatic milestone memory is on.";
+}
+
+function renderMilestones(){
+  const list=$("milestoneList");
+  if(!list)return;
+  const ch=activeChat();
+  list.innerHTML="";
+
+  if(!ch.milestones.length){
+    const empty=document.createElement("div");
+    empty.className="hint";
+    empty.textContent="No auto-saved milestones yet.";
+    list.appendChild(empty);
+    return;
+  }
+
+  ch.milestones.slice().reverse().forEach(m=>{
+    const box=document.createElement("div");
+    box.className="milestone-item";
+
+    const text=document.createElement("div");
+    text.className="milestone-text";
+    text.textContent=m.text;
+
+    const meta=document.createElement("div");
+    meta.className="milestone-meta";
+    meta.textContent=m.createdAt ? `Auto-saved ${new Date(m.createdAt).toLocaleString()}` : "Auto-saved";
+
+    const remove=document.createElement("button");
+    remove.type="button";
+    remove.className="ghost danger small";
+    remove.textContent="Delete";
+    remove.addEventListener("click",()=>{
+      ch.milestones=ch.milestones.filter(x=>x.id!==m.id);
+      syncMilestonesToMemory();
+      saveVault();
+      renderMilestones();
+    });
+
+    box.append(text,meta,remove);
+    list.appendChild(box);
+  });
+}
+
+function syncMilestonesToMemory(){
+  const ch=activeChat();
+  const markerStart="[[AUTO MILESTONES]]";
+  const markerEnd="[[/AUTO MILESTONES]]";
+  const base=(ch.relationshipMemory||"").replace(new RegExp(`\\n?${markerStart}[\\s\\S]*?${markerEnd}\\n?`,"g"),"").trim();
+  const block=ch.milestones.length
+    ? `${markerStart}\n${ch.milestones.map(m=>`- ${m.text}`).join("\n")}\n${markerEnd}`
+    : "";
+  ch.relationshipMemory=[base,block].filter(Boolean).join("\n\n");
+  if($("memoryRelationship"))$("memoryRelationship").value=ch.relationshipMemory;
+}
+
+function milestoneCandidateText(){
+  const recent=activeChat().messages.slice(-6).map(m=>m.text||"").join("\n").toLowerCase();
+  const signals=[
+    "i love you","love you","first time","had sex","slept together","made love",
+    "kissed for the first time","engaged","proposal","marry me","married","wedding",
+    "mate","mated","bonded","bond sealed","marked","claimed","break up","broke up",
+    "we're done","relationship","girlfriend","boyfriend","partner","moved in",
+    "pregnant","pregnancy","baby","died","death","killed","revealed","discovered",
+    "found out","secret","transformed","shifted","first shift","immortal","prophecy",
+    "promise","confessed","confession","betrayed","forgave","forgiven","home"
+  ];
+  return signals.some(s=>recent.includes(s));
+}
+
+function normalizeMilestoneResult(raw){
+  const cleaned=(raw||"").trim().replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+  try{
+    const obj=JSON.parse(cleaned);
+    if(obj && typeof obj.milestone==="string" && obj.milestone.trim())return obj.milestone.trim();
+    return null;
+  }catch{
+    return null;
+  }
+}
+
+async function maybeAutoSaveMilestone(){
+  if(settings.autoMemory===false)return;
+  if(!milestoneCandidateText())return;
+
+  const ch=activeChat();
+  updateMemoryStatus("Checking for a major milestone…");
+
+  const recent=ch.messages.slice(-8).map(m=>`${m.role==="user"?"USER":"CHARACTER"}: ${m.text}`).join("\n\n");
+  const existing=ch.milestones.map(m=>`- ${m.text}`).join("\n")||"(none)";
+
+  const prompt=`You are a continuity-memory extractor for a fictional roleplay.
+
+Determine whether the RECENT EXCERPT contains a MAJOR, durable continuity milestone that future scenes should remember.
+
+Save only things such as:
+- a relationship status change or major confession
+- first-time intimacy or another clearly relationship-defining event
+- marriage, engagement, mate bond, marking, bonding, breakup, reconciliation
+- major identity/power reveal or transformation
+- death, betrayal, rescue, discovery, irreversible promise, major plot revelation
+- a lasting change in who knows what or how the relationship fundamentally stands
+
+DO NOT save:
+- ordinary flirting, kisses, meals, routine sex after an already-established sexual relationship
+- momentary emotions, temporary positions, clothing, minor actions, jokes, or atmospheric details
+- explicit mechanical sexual detail
+
+Return ONLY valid JSON in exactly one of these forms:
+{"milestone":"one concise neutral continuity sentence"}
+{"milestone":null}
+
+EXISTING MILESTONES:
+${existing}
+
+RECENT EXCERPT:
+${recent}`;
+
+  try{
+    const raw=await openRouterRequest([
+      {role:"system",content:"Return strict JSON only. No markdown and no explanation."},
+      {role:"user",content:prompt}
+    ],140,0.1);
+
+    const milestone=normalizeMilestoneResult(raw);
+
+    if(!milestone){
+      updateMemoryStatus("No major milestone detected.");
+      return;
+    }
+
+    const duplicate=ch.milestones.some(m=>{
+      const a=m.text.toLowerCase(),b=milestone.toLowerCase();
+      return a===b || a.includes(b) || b.includes(a);
+    });
+
+    if(duplicate){
+      updateMemoryStatus("Milestone already remembered.");
+      return;
+    }
+
+    ch.milestones.push({id:uid(),text:milestone,createdAt:now(),source:"auto"});
+    syncMilestonesToMemory();
+    ch.updatedAt=now();
+    saveVault();
+    renderMilestones();
+    updateMemoryStatus("Major milestone saved.");
+  }catch(err){
+    updateMemoryStatus(`Memory check skipped: ${err?.message||String(err)}`);
+  }
+}
+
 function renderContextLists(){
   renderEntries($("loreList"),activeCharacter().lore,()=>activeCharacter().lore);
   renderEntries($("threadList"),activeChat().threads,()=>activeChat().threads);
@@ -596,6 +762,7 @@ async function generateDirectedContinuation(mode){
     saveVault();
     renderMessages();
     $("connectionStatus").textContent=`connected • ${settings.model}`;
+    maybeAutoSaveMilestone();
   }catch(err){
     ch.messages.push({role:"assistant",text:`Connection error: ${err.message}`,error:true});
     saveVault();
@@ -681,6 +848,7 @@ async function generateReply(){
     saveVault();
     renderMessages();
     $("connectionStatus").textContent=`connected • ${settings.model}`;
+    maybeAutoSaveMilestone();
   }catch(err){
     activeChat().messages.push({role:"assistant",text:`Connection error: ${err?.message||String(err)}`,error:true});
     saveVault();
@@ -857,5 +1025,5 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   selectTab("chat");
 });
 
-function renderAll(){renderLibrary();renderBasics();renderContextLists();renderMessages();renderChatList()}
+function renderAll(){renderLibrary();renderBasics();renderContextLists();renderMilestones();renderMessages();renderChatList()}
 bindBasics();renderAll();saveVault();

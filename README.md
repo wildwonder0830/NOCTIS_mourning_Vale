@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.5.2
+# Noctis Mourning Vale — v0.6
 
 A browser-based personal character/RP vault.
 
@@ -195,3 +195,18 @@ The Settings field remains editable so more limits can be added later.
 - Future model replies use the corrected version of the message.
 - Existing later replies are preserved; editing does not automatically delete or regenerate them.
 - API-key and vault storage remain unchanged.
+
+
+## v0.6 Automatic Milestone Memory
+
+- Adds automatic detection of major continuity milestones.
+- Uses a lightweight local keyword gate first, so Noctis does **not** spend a second model request on every turn.
+- When a likely major event occurs, the model performs a tiny continuity extraction request.
+- Major events are saved as short neutral timeline memories.
+- Auto memories are injected into Active Chat Memory so future replies can use them.
+- Memory examples: first-time intimacy, love confession, engagement/marriage, mate bond, breakup/reconciliation, major reveal, transformation, death, betrayal, irreversible promise, major discovery.
+- Routine actions and explicit mechanical sexual details are intentionally not saved.
+- Adds an Auto-Saved Milestones list with Delete controls.
+- Adds an Automatic Memory toggle in Settings.
+- Existing chats are upgraded in place with an empty milestone list.
+- API-key storage remains unchanged.
