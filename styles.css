@@ -65,3 +65,40 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
   .quick{font-size:11px;padding:7px 3px}
   .messages{max-height:58vh}
 }
+
+/* v0.4.9: force quick actions inside the visible composer itself on Mobile Safari */
+.composer-dock .composer{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  grid-template-areas:
+    "input send"
+    "quick quick";
+  gap:8px 10px;
+}
+.composer-dock .composer #messageInput{grid-area:input}
+.composer-dock .composer #sendBtn{grid-area:send}
+.composer-dock .composer .quick-actions{
+  grid-area:quick;
+  display:grid !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  width:100%;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:5px;
+  padding:0;
+  margin:0;
+}
+.composer-dock .composer .quick{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  min-height:34px;
+  padding:6px 2px;
+  font-size:11px;
+  border-radius:11px;
+}
+@media(max-width:620px){
+  .composer-dock .composer{
+    grid-template-columns:minmax(0,1fr) 82px;
+  }
+}

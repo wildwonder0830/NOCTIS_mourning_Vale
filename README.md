@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.8
+# Noctis Mourning Vale — v0.4.9
 
 A browser-based personal character/RP vault.
 
@@ -144,3 +144,11 @@ Recommended rescue workflow:
 - Bottom dock respects the iPhone safe-area inset.
 - API-key and vault storage are unchanged.
 - Safari cache-bust advanced to v0.4.8.
+
+
+## v0.4.9 iPhone quick-action visibility fix
+
+- Moves Continue / Elaborate / My Turn / Regen physically inside the visible message composer.
+- Forces the quick-action row visible on Mobile Safari.
+- The buttons now sit directly underneath the message field and Send button.
+- No changes to API-key storage, model settings, chats, or vault data.
