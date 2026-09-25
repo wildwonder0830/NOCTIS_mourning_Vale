@@ -45,6 +45,20 @@ const defaultSettings={
   model:"nvidia/nemotron-3-ultra-550b-a55b:free",
   temperature:0.85,
   maxTokens:900,
+  hardLimits:[
+    "Anal sex or anal penetration",
+    "Breath play",
+    "Hard choking or strangulation",
+    "Suffocation or intentional oxygen restriction",
+    "Eroticized loss of consciousness from airway or blood-flow restriction",
+    "Electrical stimulation / e-stim",
+    "Sexual content involving animals or bestiality",
+    "Extreme pain or torture-level pain",
+    "Crying as an erotic goal, kink, or escalation target",
+    "Urine / piss play",
+    "Feces / scat / shit play",
+    "Overstimulation"
+  ].join("\n"),
   userTurnStyle:"Write the protagonist's turn naturally and in character. Match the user's established writing style and current scene. Keep it concise by default. Do not invent major new canon, backstory, consent, relationship milestones, injuries, powers, or decisions that are not supported by the existing RP."
 };
 
@@ -186,6 +200,7 @@ function renderBasics(){
   $("apiKey").value=settings.apiKey||"";$("modelName").value=settings.model||defaultSettings.model;
   $("temperature").value=settings.temperature??0.85;$("maxTokens").value=settings.maxTokens??900;
   if($("userTurnStyle"))$("userTurnStyle").value=settings.userTurnStyle||defaultSettings.userTurnStyle;
+  if($("hardLimits"))$("hardLimits").value=settings.hardLimits||defaultSettings.hardLimits;
   updateConnectionStatus();
 }
 function bindBasics(){
@@ -209,6 +224,7 @@ function bindBasics(){
     $("rpTestResult").textContent="";
   });
   if($("userTurnStyle"))$("userTurnStyle").addEventListener("input",e=>{settings.userTurnStyle=e.target.value;saveSettings()});
+  if($("hardLimits"))$("hardLimits").addEventListener("input",e=>{settings.hardLimits=e.target.value;saveSettings()});
   $("temperature").addEventListener("input",e=>{settings.temperature=Math.max(0,Math.min(2,Number(e.target.value)||0));saveSettings()});
   $("maxTokens").addEventListener("input",e=>{settings.maxTokens=Math.max(64,Math.min(4096,Number(e.target.value)||900));saveSettings()});
   if($("recoverKeyBtn"))$("recoverKeyBtn").addEventListener("click",()=>{
@@ -353,6 +369,18 @@ ${lore}
 
 OPEN THREADS FOR THIS TIMELINE
 ${threads}
+
+GLOBAL HARD LIMITS — ABSOLUTE
+${settings.hardLimits || defaultSettings.hardLimits}
+
+HARD-LIMIT ENFORCEMENT
+- The listed hard limits apply across every character, cast, timeline, and scene.
+- Never have an NPC propose, request, threaten, fantasize about, initiate, normalize, or escalate toward a listed hard limit.
+- Never eroticize a listed hard limit.
+- Do not test the boundary by offering a "milder" version of the same prohibited act.
+- If a scene naturally approaches a hard limit, redirect the NPC toward a different action that fits the character and tone without breaking immersion.
+- Do not repeatedly mention the hard limit or turn the RP into a safety lecture.
+- User-created OOC edits can change the list in Settings, but ordinary in-character dialogue does not override it.
 
 NOCTIS CORE CONTINUITY RULES
 - HUMAN-STYLE TURN TAKING IS MANDATORY. Control only the NPC character(s), environment, and events that belong to the engine.
@@ -524,6 +552,11 @@ DRAFTING RULES:
 - Do not prepend labels such as "Amanda:" or "User:".
 - Do not explain the draft.
 - Do not continue into the NPC's next turn.
+
+GLOBAL HARD LIMITS:
+${settings.hardLimits||defaultSettings.hardLimits}
+
+Never draft the protagonist initiating, requesting, accepting, fantasizing about, or escalating toward any listed hard limit.
 
 USER'S MY-TURN STYLE PREFERENCE:
 ${settings.userTurnStyle||defaultSettings.userTurnStyle}`;

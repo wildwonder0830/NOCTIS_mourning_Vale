@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.9
+# Noctis Mourning Vale — v0.5.1
 
 A browser-based personal character/RP vault.
 
@@ -152,3 +152,34 @@ Recommended rescue workflow:
 - Forces the quick-action row visible on Mobile Safari.
 - The buttons now sit directly underneath the message field and Send button.
 - No changes to API-key storage, model settings, chats, or vault data.
+
+
+## v0.5 Global Hard Limits
+
+- Adds a persistent **Global Hard Limits** field in Settings.
+- Limits apply across every character and every timeline.
+- Default protected limit: breath play / choking / strangulation / suffocation / intentional oxygen restriction / eroticized loss of consciousness.
+- NPCs are instructed not to propose, initiate, threaten, fantasize about, or escalate toward listed limits.
+- The engine redirects naturally instead of repeatedly lecturing about the boundary.
+- Generate My Turn also respects the same limits.
+- Hard limits stay in private browser settings and are not included in ordinary vault exports unless deliberately added later.
+- API-key storage remains unchanged.
+
+
+## v0.5.1 expanded hard limits
+
+Default global hard limits now include:
+- anal sex / anal penetration
+- breath play
+- hard choking / strangulation
+- suffocation / intentional oxygen restriction
+- eroticized loss of consciousness from airway or blood-flow restriction
+- electrical stimulation / e-stim
+- sexual content involving animals / bestiality
+- extreme pain / torture-level pain
+- crying as an erotic goal or kink
+- urine / piss play
+- feces / scat / shit play
+- overstimulation
+
+The Settings field remains editable so more limits can be added later.
