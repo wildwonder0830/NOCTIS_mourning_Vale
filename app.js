@@ -13,6 +13,7 @@ function newCharacter(name="New Character"){
   const chat=newChat();
   return {
     id:uid(),name,role:"",personality:"",backstory:"",voice:"",
+    migrationNotes:"",
     directives:[
       "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
       "Preserve established canon, scene geography, physical positions, clothing, injuries, objects, and elapsed time.",
@@ -33,7 +34,7 @@ function defaultVault(){
   c.backstory="A temporary test character used to validate the Noctis Mourning Vale engine.";
   c.voice="Natural, immersive prose. Speaks with confidence and specificity.";
   c.chats[0].messages=[{role:"assistant",text:"Noctis Mourning Vale v0.3 initialized. Your character library and separate timelines are ready."}];
-  return {version:"0.3",characters:[c],activeCharacterId:c.id,updatedAt:now()};
+  return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
 const defaultSettings={apiKey:"",model:"google/gemma-4-31b-it:free",temperature:0.85,maxTokens:900};
 
@@ -45,6 +46,7 @@ function migrateLegacy(legacy){
   c.voice=legacy?.character?.voice||"";
   c.directives=legacy?.character?.directives||c.directives;
   c.permanentMemory=legacy?.memory?.permanent||"";
+  c.migrationNotes=legacy?.migrationNotes||"";
   c.lore=Array.isArray(legacy?.lore)?legacy.lore:[];
   const chat=c.chats[0];
   chat.messages=Array.isArray(legacy?.messages)?legacy.messages:[];
@@ -52,7 +54,7 @@ function migrateLegacy(legacy){
   chat.scene={...chat.scene,...(legacy?.scene||{})};
   chat.threads=Array.isArray(legacy?.threads)?legacy.threads:[];
   chat.title="Main Story";
-  return {version:"0.3",characters:[c],activeCharacterId:c.id,updatedAt:now()};
+  return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
 function loadVault(){
   try{
@@ -107,6 +109,7 @@ function renderBasics(){
   $("charName").value=c.name||"";$("charRole").value=c.role||"";$("charPersonality").value=c.personality||"";
   $("charBackstory").value=c.backstory||"";$("charVoice").value=c.voice||"";$("charDirectives").value=c.directives||"";
   $("memoryPermanent").value=c.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
+  if($("migrationNotes"))$("migrationNotes").value=c.migrationNotes||"";
   $("sceneLocation").value=ch.scene.location||"";$("sceneTime").value=ch.scene.time||"";
   $("sceneState").value=ch.scene.state||"";$("sceneEmotion").value=ch.scene.emotion||"";
   $("chatCharacterName").textContent=c.name||"Noctis";$("characterEditorTitle").textContent=c.name||"Character";
@@ -122,6 +125,7 @@ function bindBasics(){
     if(id==="charName"){$("chatCharacterName").textContent=e.target.value||"Noctis";$("characterEditorTitle").textContent=e.target.value||"Character";renderLibrary()}
   }));
   $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;saveVault()});
+  if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;saveVault()});
   $("memoryRelationship").addEventListener("input",e=>{activeChat().relationshipMemory=e.target.value;activeChat().updatedAt=now();saveVault()});
   [["sceneLocation","location"],["sceneTime","time"],["sceneState","state"],["sceneEmotion","emotion"]].forEach(([id,key])=>$(id).addEventListener("input",e=>{activeChat().scene[key]=e.target.value;activeChat().updatedAt=now();saveVault()}));
   $("apiKey").addEventListener("input",e=>{settings.apiKey=e.target.value.trim();saveSettings();updateConnectionStatus()});
@@ -320,7 +324,7 @@ Write Jesse's next response in 1–3 paragraphs. Do not write or imply Amanda's 
 $("exportBtn").addEventListener("click",()=>{
   const backup={...vault,exportedAt:now(),settingsExcluded:true};
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=`noctis-vault-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
+  a.href=url;a.download=`noctis-vault-backup-v0.4-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
 });
 $("importInput").addEventListener("change",async e=>{
   const file=e.target.files?.[0];if(!file)return;
@@ -332,13 +336,112 @@ $("importInput").addEventListener("change",async e=>{
       ch.updatedAt=now();saveVault();renderAll();alert("Text transcript archived in the active chat. Structured transcript parsing is coming next.");
     }else{
       const parsed=JSON.parse(raw);
-      if(parsed?.version==="0.3"&&Array.isArray(parsed.characters)){vault=parsed}
+      if((parsed?.version==="0.3"||parsed?.version==="0.4")&&Array.isArray(parsed.characters)){vault=parsed}
       else if(parsed?.character||parsed?.messages){vault=migrateLegacy(parsed)}
       else throw new Error("Unknown Noctis format");
       saveVault();renderAll();alert("Import complete.");
     }
   }catch(err){alert(`That file could not be imported: ${err.message}`)}
   e.target.value="";
+});
+
+
+function normalizeLabels(raw){
+  return raw.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+}
+
+function parseRescueText(){
+  const raw=$("rescueText").value.replace(/\r\n/g,"\n").trim();
+  const mode=$("rescueMode").value;
+  if(!raw)return [];
+
+  if(mode==="archive"){
+    return [{role:"assistant",text:`[ARCHIVED TRANSCRIPT]\n\n${raw}`,archive:true}];
+  }
+
+  if(mode==="userfirst" || mode==="assistantfirst"){
+    const blocks=raw.split(/\n\s*\n+/).map(x=>x.trim()).filter(Boolean);
+    let role=mode==="userfirst"?"user":"assistant";
+    return blocks.map(text=>{
+      const item={role,text};
+      role=role==="user"?"assistant":"user";
+      return item;
+    });
+  }
+
+  const userLabels=normalizeLabels($("userLabels").value);
+  const assistantLabels=normalizeLabels($("assistantLabels").value);
+
+  const lines=raw.split("\n");
+  const out=[];
+  let currentRole=null,current=[];
+
+  const flush=()=>{
+    const text=current.join("\n").trim();
+    if(text && currentRole)out.push({role:currentRole,text});
+    current=[];
+  };
+
+  const labelRe=/^\s*([A-Za-z0-9 _'&-]{1,40})\s*:\s*(.*)$/;
+  for(const line of lines){
+    const m=line.match(labelRe);
+    if(m){
+      const label=m[1].trim().toLowerCase();
+      let role=null;
+      if(userLabels.includes(label))role="user";
+      else if(assistantLabels.includes(label))role="assistant";
+
+      if(role){
+        flush();
+        currentRole=role;
+        current=[m[2]];
+        continue;
+      }
+    }
+    if(currentRole)current.push(line);
+    else{
+      // If auto-detect sees unlabeled opening text, preserve it as archive note instead of guessing.
+      currentRole="assistant";
+      current=[`[UNLABELED TRANSCRIPT CONTENT]\n${line}`];
+    }
+  }
+  flush();
+  return out;
+}
+
+function showRescuePreview(){
+  const items=parseRescueText(),box=$("rescuePreview");
+  box.classList.remove("hidden");
+  if(!items.length){box.textContent="Nothing to import yet.";return}
+  box.innerHTML=`<strong>${items.length} block${items.length===1?"":"s"} detected.</strong>`;
+  items.slice(0,12).forEach(item=>{
+    const div=document.createElement("div");
+    div.className="rescue-preview-item";
+    const who=document.createElement("div");who.className="who";who.textContent=item.role==="user"?"YOU":"CHARACTER / ARCHIVE";
+    const body=document.createElement("div");body.textContent=item.text.slice(0,500)+(item.text.length>500?"…":"");
+    div.append(who,body);box.appendChild(div);
+  });
+  if(items.length>12){
+    const more=document.createElement("div");more.className="hint";more.textContent=`…plus ${items.length-12} more blocks`;
+    box.appendChild(more);
+  }
+}
+
+if($("previewRescueBtn"))$("previewRescueBtn").addEventListener("click",showRescuePreview);
+
+if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
+  const items=parseRescueText();
+  if(!items.length){alert("Paste a transcript first.");return}
+  const ch=activeChat();
+  if(!confirm(`Import ${items.length} transcript block${items.length===1?"":"s"} into "${ch.title}"?`))return;
+  ch.messages.push(...items.map(x=>({role:x.role,text:x.text,archivedImport:true})));
+  ch.updatedAt=now();
+  saveVault();
+  $("rescueText").value="";
+  $("rescuePreview").classList.add("hidden");
+  renderMessages();
+  alert("Transcript imported into the active chat.");
+  selectTab("chat");
 });
 
 function renderAll(){renderLibrary();renderBasics();renderContextLists();renderMessages();renderChatList()}

@@ -25,6 +25,7 @@
     <button data-tab="chat" class="tab">Chat</button>
     <button data-tab="memory" class="tab">Memory</button>
     <button data-tab="lore" class="tab">Lore</button>
+    <button data-tab="rescue" class="tab">Rescue</button>
     <button data-tab="settings" class="tab">Settings</button>
   </nav>
 
@@ -133,6 +134,51 @@
           <button id="addLoreBtn" class="small">+ Add</button>
         </div>
         <div id="loreList" class="stack"></div>
+      </div>
+    </section>
+
+
+    <section class="view" data-view="rescue">
+      <div class="panel">
+        <div class="section-title-row">
+          <div>
+            <h2>RP Rescue</h2>
+            <p class="hint">Archive old roleplays into the active character and chat without sending anything to a model.</p>
+          </div>
+        </div>
+
+        <label>Import Mode
+          <select id="rescueMode">
+            <option value="auto">Auto-detect speaker labels</option>
+            <option value="userfirst">Alternate turns starting with YOU</option>
+            <option value="assistantfirst">Alternate turns starting with CHARACTER</option>
+            <option value="archive">Archive as raw transcript note</option>
+          </select>
+        </label>
+
+        <label>Speaker labels treated as YOU
+          <input id="userLabels" value="you,user,amanda,me" />
+        </label>
+        <label>Speaker labels treated as CHARACTER
+          <input id="assistantLabels" value="assistant,character,bot,jesse,aedan,aeron,henry" />
+        </label>
+
+        <label>Paste transcript
+          <textarea id="rescueText" rows="16" placeholder="Paste an RP transcript here. Examples:&#10;&#10;Amanda: ...&#10;Jesse: ...&#10;&#10;or&#10;&#10;YOU: ...&#10;ASSISTANT: ..."></textarea>
+        </label>
+
+        <div class="button-row">
+          <button id="previewRescueBtn" class="ghost" type="button">Preview Import</button>
+          <button id="commitRescueBtn" class="send" type="button">Import Into Active Chat</button>
+        </div>
+
+        <div id="rescuePreview" class="test-card hidden"></div>
+
+        <h2 class="subhead">Migration Notes</h2>
+        <label>Canon / continuity notes for this character
+          <textarea id="migrationNotes" rows="8" placeholder="Important facts to preserve while moving this RP..."></textarea>
+        </label>
+        <p class="hint">These notes are stored with the character and included in backups. They are not automatically injected into RP unless you copy confirmed facts into Shared Canon Memory or Lore.</p>
       </div>
     </section>
 

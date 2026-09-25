@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.3.1
+# Noctis Mourning Vale — v0.4
 
 A browser-based personal character/RP vault.
 
@@ -40,3 +40,26 @@ Always make a Backup before large imports or migrations.
 - No implied protagonist movement, emotions, reactions, acceptance, refusal, or bodily response
 - Default reply length tightened to 1–3 focused paragraphs
 - RP quality test now explicitly checks whether the model stops at the user's turn
+
+
+## v0.4 RP Rescue
+
+- New Rescue tab for moving old RP transcripts into Noctis
+- Auto-detects common `Speaker: text` transcript formats
+- Customizable labels for the user's protagonist and the RP character/cast
+- Alternate-turn import modes for transcripts without speaker labels
+- Raw archive mode when preserving text exactly matters more than parsing
+- Preview before import
+- Imports into the currently active character + chat
+- Migration Notes field per character/cast
+- Imported transcript content is preserved in full-vault backups
+- No model/API call is made during transcript import
+
+Recommended rescue workflow:
+1. Create/select the correct character or shared cast.
+2. Create/select the correct timeline.
+3. Paste a manageable chunk of the old transcript into Rescue.
+4. Preview the detected speakers.
+5. Import.
+6. Add confirmed canon to Shared Canon Memory / Lore as needed.
+7. Export a full-vault backup.
