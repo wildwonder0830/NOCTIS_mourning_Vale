@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.4
+# Noctis Mourning Vale — v0.4.5
 
 A browser-based personal character/RP vault.
 
@@ -97,3 +97,12 @@ Recommended rescue workflow:
 - Shows provider/status details instead of only "Provider returned error"
 - API key storage key remains unchanged
 - Safari cache-bust advanced to v0.4.4
+
+
+## v0.4.5 Continue / Elaborate controls
+
+- **Continue**: asks the NPC/world to keep going from its side of the current turn, but still hard-stops before the user's protagonist must respond.
+- **Elaborate**: adds more dialogue, atmosphere, body language, subtext, or environmental detail to the current moment without advancing or controlling the user's protagonist.
+- Neither button stores a fake user message in the transcript.
+- Both controls preserve the human-style turn boundary.
+- Safari cache-bust advanced to v0.4.5.

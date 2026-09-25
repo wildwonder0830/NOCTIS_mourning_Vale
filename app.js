@@ -433,6 +433,42 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
   throw lastError||new Error("Unknown OpenRouter error.");
 }
+
+async function generateDirectedContinuation(mode){
+  const ch=activeChat();
+  const last=ch.messages.at(-1);
+  if(!last || last.role!=="assistant"){
+    alert("There needs to be a character reply to continue from.");
+    return;
+  }
+
+  const btn = mode==="elaborate" ? $("elaborateBtn") : $("continueBtn");
+  btn.disabled=true;
+  $("connectionStatus").textContent=mode==="elaborate" ? "elaborating…" : "continuing…";
+
+  const instruction = mode==="elaborate"
+    ? `ENGINE-ONLY INSTRUCTION: Elaborate on the character/world side of the CURRENT MOMENT without changing what the user's protagonist has done. Add richer NPC expression, dialogue, atmosphere, physical detail, subtext, or relevant world detail. Do not repeat the previous reply verbatim. Do not move the user's protagonist, decide for them, narrate their sensations/reactions, or assume they answered. Do not advance past a point where the protagonist must act or respond. Stop there and hand the turn back to the user.`
+    : `ENGINE-ONLY INSTRUCTION: Continue the character/world side of the current turn. The user is asking for more from the NPC/world before taking their own turn. Continue only with NPC actions, dialogue, environmental events, or consequences that do NOT require assuming any action, reaction, choice, sensation, or dialogue from the user's protagonist. The instant the protagonist must respond or act, STOP and hand the turn back to the user.`;
+
+  try{
+    const msgs=apiMessages();
+    msgs.push({role:"system",content:instruction});
+    const reply=await openRouterRequest(msgs);
+    ch.messages.push({role:"assistant",text:reply,continuationMode:mode});
+    ch.updatedAt=now();
+    saveVault();
+    renderMessages();
+    $("connectionStatus").textContent=`connected • ${settings.model}`;
+  }catch(err){
+    ch.messages.push({role:"assistant",text:`Connection error: ${err.message}`,error:true});
+    saveVault();
+    renderMessages();
+    $("connectionStatus").textContent="connection needs attention";
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 async function generateReply(){
   $("sendBtn").disabled=true;$("connectionStatus").textContent="thinking…";
   try{
@@ -446,6 +482,9 @@ $("chatForm").addEventListener("submit",async e=>{
   e.preventDefault();const input=$("messageInput"),text=input.value.trim();if(!text)return;
   activeChat().messages.push({role:"user",text});activeChat().updatedAt=now();input.value="";saveVault();renderMessages();await generateReply();
 });
+$("continueBtn").addEventListener("click",()=>generateDirectedContinuation("continue"));
+$("elaborateBtn").addEventListener("click",()=>generateDirectedContinuation("elaborate"));
+
 $("regenBtn").addEventListener("click",async()=>{
   const m=activeChat().messages;if(m.at(-1)?.role==="assistant")m.pop();if(m.at(-1)?.role!=="user")return;saveVault();renderMessages();await generateReply();
 });
