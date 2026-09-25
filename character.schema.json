@@ -1,13 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Noctis Character",
+  "title": "Noctis Character v0.3",
   "type": "object",
   "required": [
+    "id",
     "name",
-    "personality",
-    "directives"
+    "chats"
   ],
   "properties": {
+    "id": {
+      "type": "string"
+    },
     "name": {
       "type": "string"
     },
@@ -26,14 +29,13 @@
     "directives": {
       "type": "string"
     },
+    "permanentMemory": {
+      "type": "string"
+    },
     "lore": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": [
-          "title",
-          "body"
-        ],
         "properties": {
           "title": {
             "type": "string"
@@ -43,6 +45,15 @@
           }
         }
       }
+    },
+    "chats": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "activeChatId": {
+      "type": "string"
     }
   }
 }

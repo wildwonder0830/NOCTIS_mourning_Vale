@@ -1,12 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Noctis Memory State",
+  "title": "Noctis Timeline Memory v0.3",
   "type": "object",
   "properties": {
-    "permanent": {
-      "type": "string"
-    },
-    "relationship": {
+    "relationshipMemory": {
       "type": "string"
     },
     "scene": {
@@ -26,7 +23,7 @@
         }
       }
     },
-    "openThreads": {
+    "threads": {
       "type": "array",
       "items": {
         "type": "object",

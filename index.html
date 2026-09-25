@@ -11,16 +11,17 @@
   <header class="topbar">
     <div>
       <div class="eyebrow">NOCTIS MOURNING VALE</div>
-      <h1>Character Engine</h1>
+      <h1>Character Vault</h1>
     </div>
     <div class="top-actions">
-      <button id="exportBtn" class="ghost">Export</button>
-      <label class="ghost file-label">Import<input id="importInput" type="file" accept="application/json" /></label>
+      <button id="exportBtn" class="ghost">Backup</button>
+      <label class="ghost file-label">Import<input id="importInput" type="file" accept="application/json,.txt" /></label>
     </div>
   </header>
 
   <nav class="tabs" aria-label="Engine sections">
-    <button data-tab="character" class="tab active">Character</button>
+    <button data-tab="library" class="tab active">Library</button>
+    <button data-tab="character" class="tab">Character</button>
     <button data-tab="chat" class="tab">Chat</button>
     <button data-tab="memory" class="tab">Memory</button>
     <button data-tab="lore" class="tab">Lore</button>
@@ -28,15 +29,34 @@
   </nav>
 
   <main class="app">
-    <section class="view active" data-view="character">
+    <section class="view active" data-view="library">
       <div class="panel">
-        <h2>Character</h2>
-        <label>Name<input id="charName" /></label>
+        <div class="section-title-row">
+          <div>
+            <h2>Character Library</h2>
+            <p class="hint">Each character or shared cast gets its own canon, lore, memory, and separate RP timelines.</p>
+          </div>
+          <button id="newCharacterBtn" class="send small">+ Character</button>
+        </div>
+        <div id="characterList" class="character-grid"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="character">
+      <div class="panel">
+        <div class="section-title-row">
+          <div>
+            <h2 id="characterEditorTitle">Character</h2>
+            <p class="hint">For a paired cast such as Aedan & Aeron, use one vault entry and describe both people distinctly here.</p>
+          </div>
+          <button id="deleteCharacterBtn" class="ghost danger small">Delete</button>
+        </div>
+        <label>Name / Cast Name<input id="charName" /></label>
         <label>Role / Archetype<input id="charRole" /></label>
-        <label>Personality<textarea id="charPersonality" rows="5"></textarea></label>
-        <label>Backstory<textarea id="charBackstory" rows="7"></textarea></label>
-        <label>Voice & Speech<textarea id="charVoice" rows="4"></textarea></label>
-        <label>Response Directives<textarea id="charDirectives" rows="8"></textarea></label>
+        <label>Personality<textarea id="charPersonality" rows="6"></textarea></label>
+        <label>Backstory<textarea id="charBackstory" rows="8"></textarea></label>
+        <label>Voice & Speech<textarea id="charVoice" rows="5"></textarea></label>
+        <label>Response Directives<textarea id="charDirectives" rows="9"></textarea></label>
       </div>
     </section>
 
@@ -45,12 +65,28 @@
         <div class="chat-header">
           <div>
             <div id="chatCharacterName" class="chat-name">Noctis</div>
+            <div id="activeChatTitle" class="chat-subtitle">Main Story</div>
             <div id="connectionStatus" class="status">local state ready</div>
           </div>
           <div class="chat-actions">
-            <button id="regenBtn" class="ghost small">Regenerate</button>
-            <button id="clearChatBtn" class="ghost danger small">Clear</button>
+            <button id="newChatBtn" class="ghost small">+ Chat</button>
+            <button id="chatMenuBtn" class="ghost small">Chats</button>
           </div>
+        </div>
+
+        <div id="chatManager" class="chat-manager hidden">
+          <div class="section-title-row">
+            <strong>Timelines</strong>
+            <button id="closeChatManagerBtn" class="ghost small">Close</button>
+          </div>
+          <div id="chatList" class="chat-list"></div>
+        </div>
+
+        <div class="chat-toolbar">
+          <button id="renameChatBtn" class="ghost small">Rename</button>
+          <button id="regenBtn" class="ghost small">Regenerate</button>
+          <button id="clearChatBtn" class="ghost danger small">Clear</button>
+          <button id="deleteChatBtn" class="ghost danger small">Delete Chat</button>
         </div>
 
         <div id="messages" class="messages"></div>
@@ -65,8 +101,13 @@
     <section class="view" data-view="memory">
       <div class="panel">
         <h2>Memory</h2>
-        <label>Permanent Memory<textarea id="memoryPermanent" rows="9"></textarea></label>
-        <label>Relationship Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
+        <label>Shared Canon Memory
+          <textarea id="memoryPermanent" rows="9"></textarea>
+        </label>
+        <p class="hint">Facts that should be true across this character's timelines unless an alternate universe intentionally changes them.</p>
+
+        <h2 class="subhead">Active Chat Memory</h2>
+        <label>Relationship / Timeline Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
 
         <h2 class="subhead">Current Scene</h2>
         <label>Location<input id="sceneLocation" /></label>
@@ -85,10 +126,12 @@
     <section class="view" data-view="lore">
       <div class="panel">
         <div class="section-title-row">
-          <h2>Lorebook</h2>
+          <div>
+            <h2>Lorebook</h2>
+            <p class="hint">Shared canon: people, places, supernatural laws, objects, history, pack rules, prophecies, and anything else the RP should remember.</p>
+          </div>
           <button id="addLoreBtn" class="small">+ Add</button>
         </div>
-        <p class="hint">People, places, supernatural rules, important objects, history, and anything the character should remember as canon.</p>
         <div id="loreList" class="stack"></div>
       </div>
     </section>
@@ -96,29 +139,40 @@
     <section class="view" data-view="settings">
       <div class="panel">
         <h2>Model Connection</h2>
-        <p class="hint">Your API key stays in this browser only. It is not included in exports and is never stored in GitHub.</p>
+        <p class="hint">Your OpenRouter key remains only in this browser and is not included in Noctis backups.</p>
 
         <label>OpenRouter API Key
           <input id="apiKey" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
         </label>
 
         <label>Model
-          <input id="modelName" value="openrouter/free" />
+          <select id="modelName">
+            <option value="google/gemma-4-31b-it:free">Gemma 4 31B — free (recommended RP test)</option>
+            <option value="nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron 3 Ultra — free (long-context backup)</option>
+            <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super — free</option>
+            <option value="stealth/space-bunny-alpha">Space Bunny Alpha — free preview</option>
+            <option value="openrouter/free">Random Free Router — not recommended for continuity</option>
+          </select>
         </label>
+        <p class="hint">Fixed models keep the same underlying model between replies. Space Bunny is an anonymous preview model; use it only if you are comfortable with its provider terms.</p>
 
-        <button id="testConnectionBtn" class="send wide" type="button">Test connection</button>
+        <div class="button-row">
+          <button id="testConnectionBtn" class="send" type="button">Test connection</button>
+          <button id="rpTestBtn" class="ghost" type="button">RP quality test</button>
+        </div>
         <div id="testResult" class="test-result"></div>
+        <div id="rpTestResult" class="test-card hidden"></div>
 
         <h2 class="subhead">Generation</h2>
         <label>Temperature
-          <input id="temperature" type="number" min="0" max="2" step="0.1" />
+          <input id="temperature" type="number" min="0" max="2" step="0.05" />
         </label>
         <label>Maximum response tokens
           <input id="maxTokens" type="number" min="64" max="4096" step="64" />
         </label>
 
-        <h2 class="subhead">Privacy</h2>
-        <p class="hint">This site is publicly hosted, but your character edits, memories, chat history, and API key are stored only in your browser unless you export them. Do not hard-code private data into the public GitHub files.</p>
+        <h2 class="subhead">Backup Safety</h2>
+        <p class="hint">Use Backup regularly. v0.3 exports the whole vault: every character, timeline, lorebook, memory, and transcript. Your API key is deliberately excluded.</p>
       </div>
     </section>
   </main>
