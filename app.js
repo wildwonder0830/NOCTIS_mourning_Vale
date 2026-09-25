@@ -669,7 +669,9 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
   let lastError=null;
 
-  for(let attempt=0;attempt<2;attempt++){
+  // Up to 3 tries with the SAME selected model.
+  // This preserves character consistency while smoothing over flaky free-provider responses.
+  for(let attempt=0;attempt<3;attempt++){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),45000);
 
@@ -687,13 +689,23 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       });
 
       clearTimeout(timeout);
-
       const data=await response.json().catch(()=>({}));
 
       if(response.ok){
         const text=data?.choices?.[0]?.message?.content;
-        if(text && text.trim())return text.trim();
-        throw new Error("The model connected but returned an empty reply.");
+
+        if(text && String(text).trim()){
+          return String(text).trim();
+        }
+
+        // Some free providers occasionally return a successful envelope with no text.
+        // Treat that as transient and quietly retry the SAME model.
+        lastError=new Error("The provider returned an empty reply.");
+        if(attempt<2){
+          await new Promise(r=>setTimeout(r,700 + attempt*500));
+          continue;
+        }
+        throw lastError;
       }
 
       const main=data?.error?.message||`HTTP ${response.status}`;
@@ -708,28 +720,30 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
       lastError=new Error(details);
 
-      if(attempt===0 && [408,429,500,502,503,504].includes(Number(response.status))){
-        await new Promise(r=>setTimeout(r,1000));
+      if(attempt<2 && [408,429,500,502,503,504].includes(Number(response.status))){
+        await new Promise(r=>setTimeout(r,900 + attempt*500));
         continue;
       }
+
       throw lastError;
     }catch(err){
       clearTimeout(timeout);
 
       if(err?.name==="AbortError"){
         lastError=new Error("The model provider did not answer within 45 seconds.");
-        if(attempt===0){
-          await new Promise(r=>setTimeout(r,700));
+        if(attempt<2){
+          await new Promise(r=>setTimeout(r,700 + attempt*500));
           continue;
         }
         throw lastError;
       }
 
       lastError=err;
-      if(attempt===0 && /fetch|network|load failed/i.test(String(err?.message||err))){
-        await new Promise(r=>setTimeout(r,900));
+      if(attempt<2 && /fetch|network|load failed|empty reply/i.test(String(err?.message||err))){
+        await new Promise(r=>setTimeout(r,800 + attempt*500));
         continue;
       }
+
       throw err;
     }
   }
@@ -764,10 +778,8 @@ async function generateDirectedContinuation(mode){
     $("connectionStatus").textContent=`connected • ${settings.model}`;
     maybeAutoSaveMilestone();
   }catch(err){
-    ch.messages.push({role:"assistant",text:`Connection error: ${err.message}`,error:true});
-    saveVault();
-    renderMessages();
-    $("connectionStatus").textContent="connection needs attention";
+    $("connectionStatus").textContent="temporary model hiccup • try again";
+    console.warn("Noctis continuation error:", err);
   }finally{
     btn.disabled=false;
   }
@@ -850,10 +862,9 @@ async function generateReply(){
     $("connectionStatus").textContent=`connected • ${settings.model}`;
     maybeAutoSaveMilestone();
   }catch(err){
-    activeChat().messages.push({role:"assistant",text:`Connection error: ${err?.message||String(err)}`,error:true});
-    saveVault();
-    renderMessages();
-    $("connectionStatus").textContent="connection needs attention";
+    // Keep the user's turn intact and don't pollute the RP transcript with provider errors.
+    $("connectionStatus").textContent=`temporary model hiccup • tap Regen`;
+    console.warn("Noctis model error:", err);
   }finally{
     send.disabled=false;
     send.textContent="Send";

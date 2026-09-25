@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.6
+# Noctis Mourning Vale — v0.6.1
 
 A browser-based personal character/RP vault.
 
@@ -210,3 +210,13 @@ The Settings field remains editable so more limits can be added later.
 - Adds an Automatic Memory toggle in Settings.
 - Existing chats are upgraded in place with an empty milestone list.
 - API-key storage remains unchanged.
+
+
+## v0.6.1 quiet provider retry
+
+- Retries an empty free-provider reply up to two additional times using the **same selected model**.
+- Also retries transient network/provider failures while preserving model consistency.
+- Provider failures no longer get inserted into the RP transcript as Jesse dialogue.
+- If all retries fail, the user's post remains untouched and the status line says to tap Regen.
+- Automatic milestone memory remains enabled and unchanged.
+- API-key storage, chats, and vault data are unchanged.
