@@ -35,3 +35,33 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
 
 .rescue-preview-item{border:1px solid var(--line);border-radius:13px;padding:10px 12px;margin:8px 0;background:#130e18}
 .rescue-preview-item .who{font-size:10px;letter-spacing:.12em;color:var(--accent2);font-weight:850;margin-bottom:6px}
+
+.composer-dock{
+  position:sticky;
+  bottom:0;
+  z-index:12;
+  background:linear-gradient(to top,rgba(21,16,27,1) 78%,rgba(21,16,27,.96) 90%,rgba(21,16,27,0));
+  padding-top:10px;
+  padding-bottom:max(6px,env(safe-area-inset-bottom));
+}
+.quick-actions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+  padding:0 0 8px;
+}
+.quick{
+  padding:7px 5px;
+  min-width:0;
+  font-size:12px;
+  line-height:1.1;
+  white-space:nowrap;
+}
+.composer-dock .composer{
+  background:var(--panel);
+}
+@media(max-width:620px){
+  .quick-actions{gap:5px}
+  .quick{font-size:11px;padding:7px 3px}
+  .messages{max-height:58vh}
+}

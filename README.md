@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.5
+# Noctis Mourning Vale — v0.4.8
 
 A browser-based personal character/RP vault.
 
@@ -106,3 +106,41 @@ Recommended rescue workflow:
 - Neither button stores a fake user message in the transcript.
 - Both controls preserve the human-style turn boundary.
 - Safari cache-bust advanced to v0.4.5.
+
+
+## v0.4.6 response watchdog
+
+- Adds a 45-second provider timeout so Noctis cannot hang forever on a dead free-model request
+- Automatically retries one timeout/transient failure
+- Restores the Send button even after failed requests
+- Shows a clear in-chat error instead of silently appearing frozen
+- Does not change API-key storage or vault data
+- Safari cache-bust advanced to v0.4.6
+
+
+## v0.4.7 Generate My Turn
+
+- Adds **Generate My Turn** to the chat toolbar.
+- The AI drafts the user's protagonist response into the composer instead of sending it automatically.
+- The user can edit, rewrite, discard, or send the draft.
+- Drafting uses the current character, chat history, memory, lore, and scene continuity.
+- Attempts to match the user's established RP writing style from recent user turns.
+- Adds a **My-Turn Generator Style** setting for custom instructions.
+- The generator writes only the protagonist turn and does not continue into the NPC response.
+- API-key storage and vault storage remain unchanged.
+- Safari cache-bust advanced to v0.4.7.
+
+
+## v0.4.8 mobile chat controls
+
+- Moves the high-use RP controls down beside the composer.
+- Adds a sticky bottom quick-action row for:
+  - Continue
+  - Elaborate
+  - My Turn
+  - Regen
+- Keeps management actions (Rename, Clear, Delete Chat) in the upper toolbar.
+- Quick-action buttons are intentionally smaller on iPhone/iPad so all four remain reachable without scrolling.
+- Bottom dock respects the iPhone safe-area inset.
+- API-key and vault storage are unchanged.
+- Safari cache-bust advanced to v0.4.8.

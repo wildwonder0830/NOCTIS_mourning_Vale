@@ -40,7 +40,13 @@ function defaultVault(){
   c.chats[0].messages=[{role:"assistant",text:"Noctis Mourning Vale v0.3 initialized. Your character library and separate timelines are ready."}];
   return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
-const defaultSettings={apiKey:"",model:"nvidia/nemotron-3-ultra-550b-a55b:free",temperature:0.85,maxTokens:900};
+const defaultSettings={
+  apiKey:"",
+  model:"nvidia/nemotron-3-ultra-550b-a55b:free",
+  temperature:0.85,
+  maxTokens:900,
+  userTurnStyle:"Write the protagonist's turn naturally and in character. Match the user's established writing style and current scene. Keep it concise by default. Do not invent major new canon, backstory, consent, relationship milestones, injuries, powers, or decisions that are not supported by the existing RP."
+};
 
 function migrateLegacy(legacy){
   const c=newCharacter(legacy?.character?.name||"Imported Character");
@@ -179,6 +185,7 @@ function renderBasics(){
   $("activeChatTitle").textContent=ch.title||"Main Story";
   $("apiKey").value=settings.apiKey||"";$("modelName").value=settings.model||defaultSettings.model;
   $("temperature").value=settings.temperature??0.85;$("maxTokens").value=settings.maxTokens??900;
+  if($("userTurnStyle"))$("userTurnStyle").value=settings.userTurnStyle||defaultSettings.userTurnStyle;
   updateConnectionStatus();
 }
 function bindBasics(){
@@ -201,6 +208,7 @@ function bindBasics(){
     $("rpTestResult").classList.add("hidden");
     $("rpTestResult").textContent="";
   });
+  if($("userTurnStyle"))$("userTurnStyle").addEventListener("input",e=>{settings.userTurnStyle=e.target.value;saveSettings()});
   $("temperature").addEventListener("input",e=>{settings.temperature=Math.max(0,Math.min(2,Number(e.target.value)||0));saveSettings()});
   $("maxTokens").addEventListener("input",e=>{settings.maxTokens=Math.max(64,Math.min(4096,Number(e.target.value)||900));saveSettings()});
   if($("recoverKeyBtn"))$("recoverKeyBtn").addEventListener("click",()=>{
@@ -383,6 +391,9 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
   let lastError=null;
 
   for(let attempt=0;attempt<2;attempt++){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),45000);
+
     try{
       const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{
         method:"POST",
@@ -392,15 +403,18 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
           "HTTP-Referer":location.href,
           "X-Title":"Noctis Mourning Vale"
         },
-        body:JSON.stringify(payload)
+        body:JSON.stringify(payload),
+        signal:controller.signal
       });
+
+      clearTimeout(timeout);
 
       const data=await response.json().catch(()=>({}));
 
       if(response.ok){
         const text=data?.choices?.[0]?.message?.content;
-        if(text)return text;
-        throw new Error("The model returned no text.");
+        if(text && text.trim())return text.trim();
+        throw new Error("The model connected but returned an empty reply.");
       }
 
       const main=data?.error?.message||`HTTP ${response.status}`;
@@ -415,15 +429,25 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
       lastError=new Error(details);
 
-      // Free endpoints can briefly fail upstream. Retry once on transient/provider/rate errors.
       if(attempt===0 && [408,429,500,502,503,504].includes(Number(response.status))){
-        await new Promise(r=>setTimeout(r,900));
+        await new Promise(r=>setTimeout(r,1000));
         continue;
       }
       throw lastError;
     }catch(err){
+      clearTimeout(timeout);
+
+      if(err?.name==="AbortError"){
+        lastError=new Error("The model provider did not answer within 45 seconds.");
+        if(attempt===0){
+          await new Promise(r=>setTimeout(r,700));
+          continue;
+        }
+        throw lastError;
+      }
+
       lastError=err;
-      if(attempt===0 && /fetch|network/i.test(String(err?.message||err))){
+      if(attempt===0 && /fetch|network|load failed/i.test(String(err?.message||err))){
         await new Promise(r=>setTimeout(r,900));
         continue;
       }
@@ -469,14 +493,85 @@ async function generateDirectedContinuation(mode){
   }
 }
 
+
+async function generateMyTurn(){
+  const ch=activeChat();
+  const c=activeCharacter();
+  const last=ch.messages.at(-1);
+
+  if(!last || last.role!=="assistant"){
+    alert("Generate My Turn works after the character has replied.");
+    return;
+  }
+
+  const btn=$("generateMyTurnBtn");
+  btn.disabled=true;
+  $("connectionStatus").textContent="drafting your turn…";
+
+  const instruction=`You are drafting the USER PROTAGONIST'S NEXT ROLEPLAY TURN for the user to review before sending.
+
+ACTIVE PROTAGONIST:
+The user's protagonist in this RP. Use only details established in the chat, memory, lore, and existing user messages.
+
+DRAFTING RULES:
+- Write ONLY the protagonist's next turn, not the NPC's reply afterward.
+- Match the user's established prose style, tense, formatting, dialogue habits, and typical length from their recent user messages.
+- Preserve canon and current physical continuity.
+- Do not invent major new backstory, powers, injuries, relationship milestones, consent, promises, or irreversible decisions.
+- Do not force a dramatic choice the user has not implied.
+- It is fine to respond to the NPC's latest action/dialogue, add protagonist dialogue, voluntary movement, thoughts, emotion, or action because THIS MODE exists specifically to draft the user's turn.
+- Keep the draft editable and natural rather than overly polished or generic.
+- Do not prepend labels such as "Amanda:" or "User:".
+- Do not explain the draft.
+- Do not continue into the NPC's next turn.
+
+USER'S MY-TURN STYLE PREFERENCE:
+${settings.userTurnStyle||defaultSettings.userTurnStyle}`;
+
+  try{
+    const msgs=apiMessages();
+    msgs.push({role:"system",content:instruction});
+    msgs.push({role:"user",content:"Draft my next turn only."});
+
+    const draft=await openRouterRequest(
+      msgs,
+      Math.min(Number(settings.maxTokens||900),700),
+      Math.min(Number(settings.temperature??0.85),1.0)
+    );
+
+    $("messageInput").value=draft.trim();
+    $("messageInput").focus();
+    $("messageInput").setSelectionRange($("messageInput").value.length,$("messageInput").value.length);
+    $("connectionStatus").textContent=`draft ready • ${settings.model}`;
+  }catch(err){
+    $("connectionStatus").textContent="draft generator needs attention";
+    alert(`Could not generate your turn: ${err?.message||String(err)}`);
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 async function generateReply(){
-  $("sendBtn").disabled=true;$("connectionStatus").textContent="thinking…";
+  const send=$("sendBtn");
+  send.disabled=true;
+  send.textContent="…";
+  $("connectionStatus").textContent="thinking…";
   try{
     const reply=await openRouterRequest(apiMessages());
-    activeChat().messages.push({role:"assistant",text:reply});activeChat().updatedAt=now();saveVault();renderMessages();$("connectionStatus").textContent=`connected • ${settings.model}`;
+    activeChat().messages.push({role:"assistant",text:reply});
+    activeChat().updatedAt=now();
+    saveVault();
+    renderMessages();
+    $("connectionStatus").textContent=`connected • ${settings.model}`;
   }catch(err){
-    activeChat().messages.push({role:"assistant",text:`Connection error: ${err.message}`,error:true});saveVault();renderMessages();$("connectionStatus").textContent="connection needs attention";
-  }finally{$("sendBtn").disabled=false}
+    activeChat().messages.push({role:"assistant",text:`Connection error: ${err?.message||String(err)}`,error:true});
+    saveVault();
+    renderMessages();
+    $("connectionStatus").textContent="connection needs attention";
+  }finally{
+    send.disabled=false;
+    send.textContent="Send";
+  }
 }
 $("chatForm").addEventListener("submit",async e=>{
   e.preventDefault();const input=$("messageInput"),text=input.value.trim();if(!text)return;
@@ -484,6 +579,7 @@ $("chatForm").addEventListener("submit",async e=>{
 });
 $("continueBtn").addEventListener("click",()=>generateDirectedContinuation("continue"));
 $("elaborateBtn").addEventListener("click",()=>generateDirectedContinuation("elaborate"));
+$("generateMyTurnBtn").addEventListener("click",generateMyTurn);
 
 $("regenBtn").addEventListener("click",async()=>{
   const m=activeChat().messages;if(m.at(-1)?.role==="assistant")m.pop();if(m.at(-1)?.role!=="user")return;saveVault();renderMessages();await generateReply();
