@@ -19,73 +19,114 @@
     </div>
   </header>
 
-  <main class="layout">
-    <aside class="panel left-panel">
-      <section>
+  <nav class="tabs" aria-label="Engine sections">
+    <button data-tab="character" class="tab active">Character</button>
+    <button data-tab="chat" class="tab">Chat</button>
+    <button data-tab="memory" class="tab">Memory</button>
+    <button data-tab="lore" class="tab">Lore</button>
+    <button data-tab="settings" class="tab">Settings</button>
+  </nav>
+
+  <main class="app">
+    <section class="view active" data-view="character">
+      <div class="panel">
         <h2>Character</h2>
         <label>Name<input id="charName" /></label>
         <label>Role / Archetype<input id="charRole" /></label>
         <label>Personality<textarea id="charPersonality" rows="5"></textarea></label>
-        <label>Backstory<textarea id="charBackstory" rows="6"></textarea></label>
+        <label>Backstory<textarea id="charBackstory" rows="7"></textarea></label>
         <label>Voice & Speech<textarea id="charVoice" rows="4"></textarea></label>
-        <label>Response Directives<textarea id="charDirectives" rows="6"></textarea></label>
-      </section>
-
-      <section>
-        <div class="section-title-row">
-          <h2>Lorebook</h2>
-          <button id="addLoreBtn" class="small">+ Add</button>
-        </div>
-        <div id="loreList" class="stack"></div>
-      </section>
-    </aside>
-
-    <section class="chat-shell">
-      <div class="chat-header">
-        <div>
-          <div id="chatCharacterName" class="chat-name">Noctis</div>
-          <div class="status">local prototype • persistent state</div>
-        </div>
-        <button id="clearChatBtn" class="ghost danger">Clear chat</button>
+        <label>Response Directives<textarea id="charDirectives" rows="8"></textarea></label>
       </div>
-
-      <div id="messages" class="messages"></div>
-
-      <form id="chatForm" class="composer">
-        <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
-        <button type="submit" class="send">Send</button>
-      </form>
     </section>
 
-    <aside class="panel right-panel">
-      <section>
-        <h2>Memory</h2>
-        <label>Permanent Memory<textarea id="memoryPermanent" rows="8"></textarea></label>
-        <label>Relationship Memory<textarea id="memoryRelationship" rows="7"></textarea></label>
-      </section>
+    <section class="view" data-view="chat">
+      <div class="chat-shell">
+        <div class="chat-header">
+          <div>
+            <div id="chatCharacterName" class="chat-name">Noctis</div>
+            <div id="connectionStatus" class="status">local state ready</div>
+          </div>
+          <div class="chat-actions">
+            <button id="regenBtn" class="ghost small">Regenerate</button>
+            <button id="clearChatBtn" class="ghost danger small">Clear</button>
+          </div>
+        </div>
 
-      <section>
-        <h2>Current Scene</h2>
+        <div id="messages" class="messages"></div>
+
+        <form id="chatForm" class="composer">
+          <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
+          <button type="submit" id="sendBtn" class="send">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="view" data-view="memory">
+      <div class="panel">
+        <h2>Memory</h2>
+        <label>Permanent Memory<textarea id="memoryPermanent" rows="9"></textarea></label>
+        <label>Relationship Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
+
+        <h2 class="subhead">Current Scene</h2>
         <label>Location<input id="sceneLocation" /></label>
         <label>Time / Atmosphere<input id="sceneTime" /></label>
         <label>Scene State<textarea id="sceneState" rows="6"></textarea></label>
         <label>Emotional State<textarea id="sceneEmotion" rows="5"></textarea></label>
-      </section>
 
-      <section>
         <div class="section-title-row">
-          <h2>Open Threads</h2>
+          <h2 class="subhead">Open Threads</h2>
           <button id="addThreadBtn" class="small">+ Add</button>
         </div>
         <div id="threadList" class="stack"></div>
-      </section>
-    </aside>
+      </div>
+    </section>
+
+    <section class="view" data-view="lore">
+      <div class="panel">
+        <div class="section-title-row">
+          <h2>Lorebook</h2>
+          <button id="addLoreBtn" class="small">+ Add</button>
+        </div>
+        <p class="hint">People, places, supernatural rules, important objects, history, and anything the character should remember as canon.</p>
+        <div id="loreList" class="stack"></div>
+      </div>
+    </section>
+
+    <section class="view" data-view="settings">
+      <div class="panel">
+        <h2>Model Connection</h2>
+        <p class="hint">Your API key stays in this browser only. It is not included in exports and is never stored in GitHub.</p>
+
+        <label>OpenRouter API Key
+          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
+        </label>
+
+        <label>Model
+          <input id="modelName" value="openrouter/free" />
+        </label>
+
+        <button id="testConnectionBtn" class="send wide" type="button">Test connection</button>
+        <div id="testResult" class="test-result"></div>
+
+        <h2 class="subhead">Generation</h2>
+        <label>Temperature
+          <input id="temperature" type="number" min="0" max="2" step="0.1" />
+        </label>
+        <label>Maximum response tokens
+          <input id="maxTokens" type="number" min="64" max="4096" step="64" />
+        </label>
+
+        <h2 class="subhead">Privacy</h2>
+        <p class="hint">This site is publicly hosted, but your character edits, memories, chat history, and API key are stored only in your browser unless you export them. Do not hard-code private data into the public GitHub files.</p>
+      </div>
+    </section>
   </main>
 
   <template id="entryTemplate">
     <div class="entry">
       <input class="entry-title" placeholder="Title" />
-      <textarea class="entry-body" rows="3" placeholder="Details"></textarea>
+      <textarea class="entry-body" rows="4" placeholder="Details"></textarea>
       <button class="remove danger small" type="button">Remove</button>
     </div>
   </template>
