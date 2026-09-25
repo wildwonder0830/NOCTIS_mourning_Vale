@@ -320,12 +320,97 @@ $("deleteCharacterBtn").addEventListener("click",()=>{
 
 const messagesEl=$("messages");
 function renderMessages(){
-  const c=activeCharacter(),ch=activeChat();messagesEl.innerHTML="";
-  ch.messages.forEach(msg=>{
-    const wrap=document.createElement("div");wrap.className=`message ${msg.role}${msg.error?" error":""}`;
-    const meta=document.createElement("div");meta.className="meta";meta.textContent=msg.role==="user"?"YOU":(c.name||"NOCTIS").toUpperCase();
-    const body=document.createElement("div");body.textContent=msg.text;wrap.append(meta,body);messagesEl.appendChild(wrap);
+  const c=activeCharacter(),ch=activeChat();
+  messagesEl.innerHTML="";
+
+  ch.messages.forEach((msg,index)=>{
+    const wrap=document.createElement("div");
+    wrap.className=`message ${msg.role}${msg.error?" error":""}`;
+
+    const meta=document.createElement("div");
+    meta.className="meta";
+    meta.textContent=msg.role==="user"?"YOU":(c.name||"NOCTIS").toUpperCase();
+
+    const body=document.createElement("div");
+    body.className="message-body";
+    body.textContent=msg.text;
+
+    wrap.append(meta,body);
+
+    if(msg.role==="user" && !msg.error){
+      const tools=document.createElement("div");
+      tools.className="message-tools";
+
+      const editBtn=document.createElement("button");
+      editBtn.type="button";
+      editBtn.className="ghost";
+      editBtn.textContent="Edit";
+
+      editBtn.addEventListener("click",()=>{
+        if(wrap.querySelector(".message-edit"))return;
+
+        body.classList.add("hidden");
+        tools.classList.add("hidden");
+
+        const editor=document.createElement("textarea");
+        editor.className="message-edit";
+        editor.value=msg.text;
+
+        const actions=document.createElement("div");
+        actions.className="message-edit-actions";
+
+        const cancel=document.createElement("button");
+        cancel.type="button";
+        cancel.className="ghost small";
+        cancel.textContent="Cancel";
+
+        const save=document.createElement("button");
+        save.type="button";
+        save.className="send small";
+        save.textContent="Save";
+
+        cancel.addEventListener("click",()=>{
+          editor.remove();
+          actions.remove();
+          body.classList.remove("hidden");
+          tools.classList.remove("hidden");
+        });
+
+        save.addEventListener("click",()=>{
+          const revised=editor.value.trim();
+          if(!revised){
+            alert("A message cannot be empty.");
+            return;
+          }
+
+          msg.text=revised;
+          msg.edited=true;
+          msg.editedAt=now();
+          ch.updatedAt=now();
+          saveVault();
+          renderMessages();
+        });
+
+        actions.append(cancel,save);
+        wrap.append(editor,actions);
+        editor.focus();
+        editor.setSelectionRange(editor.value.length,editor.value.length);
+      });
+
+      tools.append(editBtn);
+      wrap.append(tools);
+    }
+
+    if(msg.edited){
+      const edited=document.createElement("div");
+      edited.className="meta";
+      edited.textContent="EDITED";
+      wrap.append(edited);
+    }
+
+    messagesEl.appendChild(wrap);
   });
+
   messagesEl.scrollTop=messagesEl.scrollHeight;
 }
 function compileSystemPrompt(){

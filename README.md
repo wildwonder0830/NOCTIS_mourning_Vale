@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.5.1
+# Noctis Mourning Vale — v0.5.2
 
 A browser-based personal character/RP vault.
 
@@ -183,3 +183,15 @@ Default global hard limits now include:
 - overstimulation
 
 The Settings field remains editable so more limits can be added later.
+
+
+## v0.5.2 Edit My Posts
+
+- Adds an **Edit** control to every user/protagonist message.
+- Editing happens inline inside the chat bubble.
+- **Save** updates the stored transcript immediately.
+- **Cancel** exits without changing the message.
+- Edited messages are marked **EDITED**.
+- Future model replies use the corrected version of the message.
+- Existing later replies are preserved; editing does not automatically delete or regenerate them.
+- API-key and vault storage remain unchanged.

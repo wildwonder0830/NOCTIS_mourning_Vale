@@ -102,3 +102,26 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
     grid-template-columns:minmax(0,1fr) 82px;
   }
 }
+
+.message-tools{
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+  margin-top:8px;
+}
+.message-tools button{
+  padding:4px 8px;
+  font-size:10px;
+  border-radius:9px;
+}
+.message-edit{
+  width:100%;
+  min-height:90px;
+  margin-top:8px;
+}
+.message-edit-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+  margin-top:7px;
+}
