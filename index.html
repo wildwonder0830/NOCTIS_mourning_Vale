@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#120b16" />
+  <title>Noctis Mourning Vale</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">NOCTIS MOURNING VALE</div>
+      <h1>Character Engine</h1>
+    </div>
+    <div class="top-actions">
+      <button id="exportBtn" class="ghost">Export</button>
+      <label class="ghost file-label">Import<input id="importInput" type="file" accept="application/json" /></label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel left-panel">
+      <section>
+        <h2>Character</h2>
+        <label>Name<input id="charName" /></label>
+        <label>Role / Archetype<input id="charRole" /></label>
+        <label>Personality<textarea id="charPersonality" rows="5"></textarea></label>
+        <label>Backstory<textarea id="charBackstory" rows="6"></textarea></label>
+        <label>Voice & Speech<textarea id="charVoice" rows="4"></textarea></label>
+        <label>Response Directives<textarea id="charDirectives" rows="6"></textarea></label>
+      </section>
+
+      <section>
+        <div class="section-title-row">
+          <h2>Lorebook</h2>
+          <button id="addLoreBtn" class="small">+ Add</button>
+        </div>
+        <div id="loreList" class="stack"></div>
+      </section>
+    </aside>
+
+    <section class="chat-shell">
+      <div class="chat-header">
+        <div>
+          <div id="chatCharacterName" class="chat-name">Noctis</div>
+          <div class="status">local prototype • persistent state</div>
+        </div>
+        <button id="clearChatBtn" class="ghost danger">Clear chat</button>
+      </div>
+
+      <div id="messages" class="messages"></div>
+
+      <form id="chatForm" class="composer">
+        <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
+        <button type="submit" class="send">Send</button>
+      </form>
+    </section>
+
+    <aside class="panel right-panel">
+      <section>
+        <h2>Memory</h2>
+        <label>Permanent Memory<textarea id="memoryPermanent" rows="8"></textarea></label>
+        <label>Relationship Memory<textarea id="memoryRelationship" rows="7"></textarea></label>
+      </section>
+
+      <section>
+        <h2>Current Scene</h2>
+        <label>Location<input id="sceneLocation" /></label>
+        <label>Time / Atmosphere<input id="sceneTime" /></label>
+        <label>Scene State<textarea id="sceneState" rows="6"></textarea></label>
+        <label>Emotional State<textarea id="sceneEmotion" rows="5"></textarea></label>
+      </section>
+
+      <section>
+        <div class="section-title-row">
+          <h2>Open Threads</h2>
+          <button id="addThreadBtn" class="small">+ Add</button>
+        </div>
+        <div id="threadList" class="stack"></div>
+      </section>
+    </aside>
+  </main>
+
+  <template id="entryTemplate">
+    <div class="entry">
+      <input class="entry-title" placeholder="Title" />
+      <textarea class="entry-body" rows="3" placeholder="Details"></textarea>
+      <button class="remove danger small" type="button">Remove</button>
+    </div>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

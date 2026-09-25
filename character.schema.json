@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Noctis Character",
+  "type": "object",
+  "required": [
+    "name",
+    "personality",
+    "directives"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "personality": {
+      "type": "string"
+    },
+    "backstory": {
+      "type": "string"
+    },
+    "voice": {
+      "type": "string"
+    },
+    "directives": {
+      "type": "string"
+    },
+    "lore": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "body"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

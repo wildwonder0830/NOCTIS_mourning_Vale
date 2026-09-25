@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Noctis Memory State",
+  "type": "object",
+  "properties": {
+    "permanent": {
+      "type": "string"
+    },
+    "relationship": {
+      "type": "string"
+    },
+    "scene": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string"
+        },
+        "time": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "emotion": {
+          "type": "string"
+        }
+      }
+    },
+    "openThreads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
