@@ -40,7 +40,7 @@ function defaultVault(){
   c.chats[0].messages=[{role:"assistant",text:"Noctis Mourning Vale v0.3 initialized. Your character library and separate timelines are ready."}];
   return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
-const defaultSettings={apiKey:"",model:"google/gemma-4-31b-it:free",temperature:0.85,maxTokens:900};
+const defaultSettings={apiKey:"",model:"nvidia/nemotron-3-ultra-550b-a55b:free",temperature:0.85,maxTokens:900};
 
 function migrateLegacy(legacy){
   const c=newCharacter(legacy?.character?.name||"Imported Character");
@@ -372,16 +372,66 @@ function apiMessages(){
 }
 async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){
   if(!settings.apiKey)throw new Error("Add your OpenRouter API key in Settings first.");
-  const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{
-    method:"POST",
-    headers:{"Authorization":`Bearer ${settings.apiKey}`,"Content-Type":"application/json","HTTP-Referer":location.href,"X-Title":"Noctis Mourning Vale"},
-    body:JSON.stringify({model:settings.model||defaultSettings.model,messages,temperature:Number(temperature??0.85),max_tokens:Number(maxTokens??900),reasoning:{exclude:true}})
-  });
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(data?.error?.message||`Model request failed (${response.status}).`);
-  const text=data?.choices?.[0]?.message?.content;
-  if(!text)throw new Error("The model returned no text.");
-  return text;
+
+  const payload={
+    model:settings.model||defaultSettings.model,
+    messages,
+    temperature:Number(temperature??0.85),
+    max_tokens:Number(maxTokens??900)
+  };
+
+  let lastError=null;
+
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+        method:"POST",
+        headers:{
+          "Authorization":`Bearer ${settings.apiKey}`,
+          "Content-Type":"application/json",
+          "HTTP-Referer":location.href,
+          "X-Title":"Noctis Mourning Vale"
+        },
+        body:JSON.stringify(payload)
+      });
+
+      const data=await response.json().catch(()=>({}));
+
+      if(response.ok){
+        const text=data?.choices?.[0]?.message?.content;
+        if(text)return text;
+        throw new Error("The model returned no text.");
+      }
+
+      const main=data?.error?.message||`HTTP ${response.status}`;
+      const provider=data?.error?.metadata?.provider_name||data?.error?.metadata?.provider||"";
+      const raw=data?.error?.metadata?.raw||data?.error?.metadata?.message||"";
+      const code=data?.error?.code||response.status;
+
+      let details=`${main}`;
+      if(provider)details+=` • provider: ${provider}`;
+      if(raw && typeof raw==="string" && raw!==main)details+=` • ${raw.slice(0,220)}`;
+      details+=` • code: ${code}`;
+
+      lastError=new Error(details);
+
+      // Free endpoints can briefly fail upstream. Retry once on transient/provider/rate errors.
+      if(attempt===0 && [408,429,500,502,503,504].includes(Number(response.status))){
+        await new Promise(r=>setTimeout(r,900));
+        continue;
+      }
+      throw lastError;
+    }catch(err){
+      lastError=err;
+      if(attempt===0 && /fetch|network/i.test(String(err?.message||err))){
+        await new Promise(r=>setTimeout(r,900));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError||new Error("Unknown OpenRouter error.");
 }
 async function generateReply(){
   $("sendBtn").disabled=true;$("connectionStatus").textContent="thinking…";

@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.3
+# Noctis Mourning Vale — v0.4.4
 
 A browser-based personal character/RP vault.
 
@@ -87,3 +87,13 @@ Recommended rescue workflow:
 - Clears stale RP-test errors whenever you switch models
 - Requests reasoning output be excluded when the selected OpenRouter model supports that setting
 - Cache-bust updated for Safari
+
+
+## v0.4.4 provider-error fix
+
+- Removed the experimental `reasoning` request option that could upset some free providers
+- Nemotron 3 Ultra is the default fixed free model
+- Retries one transient provider/network error automatically
+- Shows provider/status details instead of only "Provider returned error"
+- API key storage key remains unchanged
+- Safari cache-bust advanced to v0.4.4
