@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4
+# Noctis Mourning Vale — v0.4.1
 
 A browser-based personal character/RP vault.
 
@@ -63,3 +63,10 @@ Recommended rescue workflow:
 5. Import.
 6. Add confirmed canon to Shared Canon Memory / Lore as needed.
 7. Export a full-vault backup.
+
+
+## v0.4.1 settings migration fix
+
+- Automatically recovers OpenRouter settings stored by v0.2 or v0.2.1
+- Moves recovered settings into the current v0.4 settings key
+- Full-vault backups still intentionally exclude API keys

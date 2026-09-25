@@ -1,6 +1,10 @@
 const STORAGE_KEY="noctis-mourning-vale-v0.3";
 const LEGACY_KEY="noctis-mourning-vale-v0.2";
-const SETTINGS_KEY="noctis-private-settings-v0.2.1";
+const SETTINGS_KEY="noctis-private-settings-v0.4";
+const LEGACY_SETTINGS_KEYS=[
+  "noctis-private-settings-v0.2.1",
+  "noctis-private-settings-v0.2"
+];
 
 const uid=()=>`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -70,7 +74,20 @@ function loadVault(){
   return defaultVault();
 }
 function loadSettings(){
-  try{return {...clone(defaultSettings),...(JSON.parse(localStorage.getItem(SETTINGS_KEY)||"{}"))}}catch{return clone(defaultSettings)}
+  try{
+    const current=localStorage.getItem(SETTINGS_KEY);
+    if(current)return {...clone(defaultSettings),...JSON.parse(current)};
+
+    for(const key of LEGACY_SETTINGS_KEYS){
+      const legacy=localStorage.getItem(key);
+      if(legacy){
+        const migrated={...clone(defaultSettings),...JSON.parse(legacy)};
+        localStorage.setItem(SETTINGS_KEY,JSON.stringify(migrated));
+        return migrated;
+      }
+    }
+  }catch{}
+  return clone(defaultSettings);
 }
 let vault=loadVault();
 let settings=loadSettings();
