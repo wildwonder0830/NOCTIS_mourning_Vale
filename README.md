@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.4.1
+# Noctis Mourning Vale — v0.4.3
 
 A browser-based personal character/RP vault.
 
@@ -70,3 +70,20 @@ Recommended rescue workflow:
 - Automatically recovers OpenRouter settings stored by v0.2 or v0.2.1
 - Moves recovered settings into the current v0.4 settings key
 - Full-vault backups still intentionally exclude API keys
+
+
+## v0.4.2 API-key recovery + Safari cache fix
+
+- Cache-busts `app.js` and `styles.css` so Safari loads the actual new build
+- Searches current and legacy Noctis settings keys for the existing OpenRouter API key
+- Last-resort local recovery scans this GitHub Pages origin for a stored OpenRouter-formatted key
+- Adds a visible **Recover Stored Key** button in Settings
+- Recovery remains entirely local; the key is never included in backups
+
+
+## v0.4.3 model-test cleanup
+
+- Connection test now reports only pass/fail instead of displaying whatever prose the model generated
+- Clears stale RP-test errors whenever you switch models
+- Requests reasoning output be excluded when the selected OpenRouter model supports that setting
+- Cache-bust updated for Safari

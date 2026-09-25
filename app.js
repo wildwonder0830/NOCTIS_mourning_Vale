@@ -74,19 +74,65 @@ function loadVault(){
   return defaultVault();
 }
 function loadSettings(){
-  try{
-    const current=localStorage.getItem(SETTINGS_KEY);
-    if(current)return {...clone(defaultSettings),...JSON.parse(current)};
+  const mergeCandidate=(raw)=>{
+    try{
+      const obj=JSON.parse(raw);
+      if(!obj || typeof obj!=="object")return null;
 
+      const candidate={
+        ...clone(defaultSettings),
+        ...obj
+      };
+
+      // Be forgiving about older/alternate property names.
+      candidate.apiKey =
+        obj.apiKey ||
+        obj.openRouterApiKey ||
+        obj.openrouterApiKey ||
+        obj.openrouterKey ||
+        obj.key ||
+        "";
+
+      return candidate;
+    }catch{return null}
+  };
+
+  try{
+    // 1) Current storage key.
+    const current=localStorage.getItem(SETTINGS_KEY);
+    if(current){
+      const parsed=mergeCandidate(current);
+      if(parsed && parsed.apiKey)return parsed;
+    }
+
+    // 2) Known older Noctis keys.
     for(const key of LEGACY_SETTINGS_KEYS){
       const legacy=localStorage.getItem(key);
-      if(legacy){
-        const migrated={...clone(defaultSettings),...JSON.parse(legacy)};
-        localStorage.setItem(SETTINGS_KEY,JSON.stringify(migrated));
-        return migrated;
+      if(!legacy)continue;
+      const parsed=mergeCandidate(legacy);
+      if(parsed && parsed.apiKey){
+        localStorage.setItem(SETTINGS_KEY,JSON.stringify(parsed));
+        return parsed;
+      }
+    }
+
+    // 3) Last-resort recovery: inspect Noctis/local settings records in this
+    // origin for an OpenRouter-looking key. This never sends the value anywhere.
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(!key)continue;
+
+      const raw=localStorage.getItem(key);
+      if(!raw)continue;
+
+      const parsed=mergeCandidate(raw);
+      if(parsed && typeof parsed.apiKey==="string" && parsed.apiKey.startsWith("sk-or-")){
+        localStorage.setItem(SETTINGS_KEY,JSON.stringify(parsed));
+        return parsed;
       }
     }
   }catch{}
+
   return clone(defaultSettings);
 }
 let vault=loadVault();
@@ -146,11 +192,47 @@ function bindBasics(){
   $("memoryRelationship").addEventListener("input",e=>{activeChat().relationshipMemory=e.target.value;activeChat().updatedAt=now();saveVault()});
   [["sceneLocation","location"],["sceneTime","time"],["sceneState","state"],["sceneEmotion","emotion"]].forEach(([id,key])=>$(id).addEventListener("input",e=>{activeChat().scene[key]=e.target.value;activeChat().updatedAt=now();saveVault()}));
   $("apiKey").addEventListener("input",e=>{settings.apiKey=e.target.value.trim();saveSettings();updateConnectionStatus()});
-  $("modelName").addEventListener("change",e=>{settings.model=e.target.value||defaultSettings.model;saveSettings();updateConnectionStatus()});
+  $("modelName").addEventListener("change",e=>{
+    settings.model=e.target.value||defaultSettings.model;
+    saveSettings();
+    updateConnectionStatus();
+    $("testResult").className="test-result";
+    $("testResult").textContent="";
+    $("rpTestResult").classList.add("hidden");
+    $("rpTestResult").textContent="";
+  });
   $("temperature").addEventListener("input",e=>{settings.temperature=Math.max(0,Math.min(2,Number(e.target.value)||0));saveSettings()});
   $("maxTokens").addEventListener("input",e=>{settings.maxTokens=Math.max(64,Math.min(4096,Number(e.target.value)||900));saveSettings()});
+  if($("recoverKeyBtn"))$("recoverKeyBtn").addEventListener("click",()=>{
+    const ok=recoverStoredKey();
+    $("keyRecoveryStatus").textContent=ok
+      ?"Recovered the existing OpenRouter key from this browser."
+      :"No stored OpenRouter key was found. Paste your existing key into the field once.";
+  });
 }
-function updateConnectionStatus(){$("connectionStatus").textContent=settings.apiKey?`ready • ${settings.model}`:"add OpenRouter key in Settings"}
+function updateConnectionStatus(){
+  $("connectionStatus").textContent=settings.apiKey?`ready • ${settings.model}`:"add OpenRouter key in Settings";
+  const status=$("keyRecoveryStatus");
+  if(status){
+    status.textContent=settings.apiKey
+      ? "OpenRouter key is loaded in this browser."
+      : "No OpenRouter key is currently loaded.";
+  }
+}
+
+function recoverStoredKey(){
+  const recovered=loadSettings();
+  if(recovered?.apiKey){
+    settings=recovered;
+    saveSettings();
+    $("apiKey").value=settings.apiKey;
+    $("modelName").value=settings.model||defaultSettings.model;
+    updateConnectionStatus();
+    return true;
+  }
+  updateConnectionStatus();
+  return false;
+}
 
 const template=$("entryTemplate");
 function renderEntries(container,list,getList){
@@ -293,7 +375,7 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
   const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{
     method:"POST",
     headers:{"Authorization":`Bearer ${settings.apiKey}`,"Content-Type":"application/json","HTTP-Referer":location.href,"X-Title":"Noctis Mourning Vale"},
-    body:JSON.stringify({model:settings.model||defaultSettings.model,messages,temperature:Number(temperature??0.85),max_tokens:Number(maxTokens??900)})
+    body:JSON.stringify({model:settings.model||defaultSettings.model,messages,temperature:Number(temperature??0.85),max_tokens:Number(maxTokens??900),reasoning:{exclude:true}})
   });
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data?.error?.message||`Model request failed (${response.status}).`);
@@ -320,11 +402,22 @@ $("regenBtn").addEventListener("click",async()=>{
 $("clearChatBtn").addEventListener("click",()=>{if(confirm("Clear this timeline's transcript? Character canon, lore, and memory remain.")){activeChat().messages=[];saveVault();renderMessages()}});
 
 $("testConnectionBtn").addEventListener("click",async()=>{
-  const out=$("testResult");out.className="test-result";out.textContent="Testing…";
+  const out=$("testResult");
+  out.className="test-result";
+  out.textContent="Testing connection…";
+  $("rpTestResult").classList.add("hidden");
+  $("rpTestResult").textContent="";
   try{
-    const text=await openRouterRequest([{role:"user",content:"Reply with exactly: Noctis connected."}],20,0);
-    out.className="test-result ok";out.textContent=text;
-  }catch(err){out.className="test-result bad";out.textContent=err.message}
+    await openRouterRequest([
+      {role:"system",content:"This is a connectivity check. Return a short acknowledgement only."},
+      {role:"user",content:"Connection test."}
+    ],40,0);
+    out.className="test-result ok";
+    out.textContent=`Connected successfully • ${settings.model}`;
+  }catch(err){
+    out.className="test-result bad";
+    out.textContent=`Connection failed: ${err.message}`;
+  }
 });
 $("rpTestBtn").addEventListener("click",async()=>{
   const out=$("rpTestResult");out.classList.remove("hidden");out.textContent="Testing this model's roleplay discipline…";
