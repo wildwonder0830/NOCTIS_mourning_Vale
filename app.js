@@ -11,8 +11,36 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const now=()=>new Date().toISOString();
 
 function newChat(title="Main Story"){
-  return {id:uid(),title,messages:[],relationshipMemory:"",milestones:[],scene:{location:"",time:"",state:"",emotion:""},threads:[],createdAt:now(),updatedAt:now()};
+  return {
+    id:uid(),title,messages:[],relationshipMemory:"",milestones:[],
+    consolidatedMemory:"",consolidatedThroughMessageId:null,
+    scene:{location:"",time:"",state:"",emotion:""},
+    threads:[],activePersonaId:null,castFocus:"",
+    pendingMilestone:false,createdAt:now(),updatedAt:now()
+  };
 }
+
+function newPersona(slot=1,name=""){
+  return {
+    id:uid(),slot,name:name||`Persona ${slot}`,
+    age:"",pronouns:"",species:"",occupation:"",
+    relationshipStyle:"",appearance:"",personality:"",
+    powers:"",canon:"",preferences:"",updatedAt:now()
+  };
+}
+function ensurePersonas(v){
+  if(!Array.isArray(v.personas))v.personas=[];
+  while(v.personas.length<4)v.personas.push(newPersona(v.personas.length+1));
+  v.personas=v.personas.slice(0,4);
+  v.personas.forEach((p,i)=>{
+    p.id=p.id||uid(); p.slot=i+1; p.name=p.name||`Persona ${i+1}`;
+    ["age","pronouns","species","occupation","relationshipStyle","appearance","personality","powers","canon","preferences"]
+      .forEach(k=>{if(typeof p[k]!=="string")p[k]=""});
+    p.updatedAt=p.updatedAt||now();
+  });
+  return v.personas;
+}
+
 function newCharacter(name="New Character"){
   const chat=newChat();
   return {
@@ -38,7 +66,9 @@ function defaultVault(){
   c.backstory="A temporary test character used to validate the Noctis Mourning Vale engine.";
   c.voice="Natural, immersive prose. Speaks with confidence and specificity.";
   c.chats[0].messages=[{role:"assistant",text:"Noctis Mourning Vale v0.3 initialized. Your character library and separate timelines are ready."}];
-  return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
+  const personas=[1,2,3,4].map(i=>newPersona(i));
+  c.chats[0].activePersonaId=personas[0].id;
+  return {version:"0.7",personas,characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
 const defaultSettings={
   apiKey:"",
@@ -80,7 +110,7 @@ function migrateLegacy(legacy){
   chat.scene={...chat.scene,...(legacy?.scene||{})};
   chat.threads=Array.isArray(legacy?.threads)?legacy.threads:[];
   chat.title="Main Story";
-  return {version:"0.4",characters:[c],activeCharacterId:c.id,updatedAt:now()};
+  const personas=[1,2,3,4].map(i=>newPersona(i)); chat.activePersonaId=personas[0].id; return {version:"0.7",personas,characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
 function loadVault(){
   try{
@@ -158,7 +188,96 @@ function loadSettings(){
   return clone(defaultSettings);
 }
 let vault=loadVault();
+
+function normalizeVaultV07(){
+  ensurePersonas(vault);
+  (vault.characters||[]).forEach(c=>{
+    (c.chats||[]).forEach(ch=>{
+      ch.messages=Array.isArray(ch.messages)?ch.messages:[];
+      ch.messages.forEach(m=>{if(!m.id)m.id=uid()});
+      ch.milestones=Array.isArray(ch.milestones)?ch.milestones:[];
+      if(typeof ch.consolidatedMemory!=="string")ch.consolidatedMemory="";
+      if(!("consolidatedThroughMessageId" in ch))ch.consolidatedThroughMessageId=null;
+      if(!vault.personas.some(p=>p.id===ch.activePersonaId))ch.activePersonaId=vault.personas[0].id;
+      if(typeof ch.castFocus!=="string")ch.castFocus="";
+    });
+  });
+  vault.version="0.7";
+}
+
+normalizeVaultV07();
 let settings=loadSettings();
+
+function activePersona(){
+  ensurePersonas(vault);
+  const ch=activeChat();
+  return vault.personas.find(p=>p.id===ch.activePersonaId)||vault.personas[0];
+}
+function personaPrompt(){
+  const p=activePersona();
+  if(!p)return "(none)";
+  return `Name: ${p.name||"(unspecified)"}
+Age / Life stage: ${p.age||"(unspecified)"}
+Pronouns: ${p.pronouns||"(unspecified)"}
+Species / Nature: ${p.species||"(unspecified)"}
+Occupation / Role: ${p.occupation||"(unspecified)"}
+Relationship style: ${p.relationshipStyle||"(unspecified)"}
+Appearance / Body: ${p.appearance||"(unspecified)"}
+Personality: ${p.personality||"(unspecified)"}
+Powers / Abilities: ${p.powers||"(none)"}
+Background / Canon: ${p.canon||"(none)"}
+Preferences / RP Notes: ${p.preferences||"(none)"}`;
+}
+function renderPersonas(){
+  ensurePersonas(vault);
+  const row=$("personaSlotRow");
+  if(!row)return;
+  const current=activePersona();
+  row.innerHTML="";
+  vault.personas.forEach(p=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className=`persona-slot${p.id===current.id?" active":""}`;
+    b.textContent=`${p.slot}. ${p.name||`Persona ${p.slot}`}`;
+    b.addEventListener("click",()=>{
+      activeChat().activePersonaId=p.id;
+      saveVault();renderPersonas();renderPersonaFields();renderPersonaBadge();
+    });
+    row.appendChild(b);
+  });
+}
+function renderPersonaFields(){
+  const p=activePersona(); if(!p)return;
+  const map={
+    personaName:"name",personaAge:"age",personaPronouns:"pronouns",
+    personaSpecies:"species",personaOccupation:"occupation",
+    personaRelationship:"relationshipStyle",personaAppearance:"appearance",
+    personaPersonality:"personality",personaPowers:"powers",
+    personaCanon:"canon",personaPreferences:"preferences"
+  };
+  Object.entries(map).forEach(([id,key])=>{if($(id))$(id).value=p[key]||""});
+}
+function bindPersonaFields(){
+  const map={
+    personaName:"name",personaAge:"age",personaPronouns:"pronouns",
+    personaSpecies:"species",personaOccupation:"occupation",
+    personaRelationship:"relationshipStyle",personaAppearance:"appearance",
+    personaPersonality:"personality",personaPowers:"powers",
+    personaCanon:"canon",personaPreferences:"preferences"
+  };
+  Object.entries(map).forEach(([id,key])=>{
+    if(!$(id))return;
+    $(id).addEventListener("input",e=>{
+      const p=activePersona(); p[key]=e.target.value; p.updatedAt=now(); saveVault();
+      if(key==="name"){renderPersonas();renderPersonaBadge()}
+    });
+  });
+}
+function renderPersonaBadge(){
+  const el=$("activePersonaBadge"); if(!el)return;
+  const p=activePersona(); el.textContent=p?.name?`Playing as: ${p.name}`:"";
+}
+
 function saveVault(){vault.updatedAt=now();localStorage.setItem(STORAGE_KEY,JSON.stringify(vault))}
 function saveSettings(){localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}
 const $=id=>document.getElementById(id);
@@ -174,6 +293,7 @@ function selectTab(name){
   document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===name));
   window.scrollTo({top:0,behavior:"smooth"});
+  requestAnimationFrame(updateScrollBottomButton);
 }
 document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>selectTab(btn.dataset.tab)));
 
@@ -231,6 +351,11 @@ function bindBasics(){
   if($("userTurnStyle"))$("userTurnStyle").addEventListener("input",e=>{settings.userTurnStyle=e.target.value;saveSettings()});
   if($("hardLimits"))$("hardLimits").addEventListener("input",e=>{settings.hardLimits=e.target.value;saveSettings()});
   if($("autoMemory"))$("autoMemory").addEventListener("change",e=>{settings.autoMemory=e.target.checked;saveSettings();updateMemoryStatus()});
+  if($("saveMilestoneNowBtn"))$("saveMilestoneNowBtn").addEventListener("click",saveMilestoneNow);
+  if($("consolidateMemoryBtn"))$("consolidateMemoryBtn").addEventListener("click",consolidateOlderHistory);
+  if($("consolidatedMemory"))$("consolidatedMemory").addEventListener("input",e=>{
+    activeChat().consolidatedMemory=e.target.value;activeChat().updatedAt=now();saveVault();updateConsolidationStatus();
+  });
   $("temperature").addEventListener("input",e=>{settings.temperature=Math.max(0,Math.min(2,Number(e.target.value)||0));saveSettings()});
   $("maxTokens").addEventListener("input",e=>{settings.maxTokens=Math.max(64,Math.min(4096,Number(e.target.value)||900));saveSettings()});
   if($("recoverKeyBtn"))$("recoverKeyBtn").addEventListener("click",()=>{
@@ -277,13 +402,86 @@ function renderEntries(container,list,getList){
   });
 }
 
+
+function getConversationMessages(ch=activeChat()){
+  return ch.messages.filter(m=>m && (m.role==="user"||m.role==="assistant") && !m.error);
+}
+function unconsolidatedMessages(ch=activeChat()){
+  const msgs=getConversationMessages(ch);
+  if(!ch.consolidatedThroughMessageId)return msgs;
+  const idx=msgs.findIndex(m=>m.id===ch.consolidatedThroughMessageId);
+  return idx>=0?msgs.slice(idx+1):msgs;
+}
+function renderConsolidatedMemory(){
+  const ch=activeChat();
+  if($("consolidatedMemory"))$("consolidatedMemory").value=ch.consolidatedMemory||"";
+  updateConsolidationStatus();
+}
+function updateConsolidationStatus(text=""){
+  const el=$("consolidationStatus"); if(!el)return;
+  if(text){el.textContent=text;return}
+  const pending=unconsolidatedMessages().length;
+  if(!activeChat().consolidatedMemory && pending<=16)el.textContent=`Nothing needs compressing yet • ${pending} active transcript messages.`;
+  else if(pending>24)el.textContent=`${pending} messages since the last consolidation • compacting is recommended.`;
+  else el.textContent=`${pending} recent messages remain live alongside the compact history.`;
+}
+async function consolidateOlderHistory(){
+  const ch=activeChat();
+  const all=getConversationMessages(ch), keepRecent=16;
+  if(all.length<=keepRecent){
+    updateConsolidationStatus("Not enough history yet. Noctis keeps the most recent 16 messages live.");
+    return;
+  }
+  const cutoffIndex=all.length-keepRecent-1;
+  const cutoffMessage=all[cutoffIndex];
+  const priorIndex=ch.consolidatedThroughMessageId?all.findIndex(m=>m.id===ch.consolidatedThroughMessageId):-1;
+  const slice=all.slice(Math.max(0,priorIndex+1),cutoffIndex+1);
+  if(!slice.length){updateConsolidationStatus("Older history is already compacted.");return}
+
+  const btn=$("consolidateMemoryBtn"); if(btn)btn.disabled=true;
+  updateConsolidationStatus(`Compressing ${slice.length} older messages…`);
+  const transcript=slice.map(m=>`${m.role==="user"?"USER":"CHARACTER"}: ${m.text}`).join("\n\n");
+  const prompt=`You are compacting fictional roleplay history for long-term continuity.
+
+Merge the EXISTING COMPACT MEMORY with the NEW OLDER TRANSCRIPT into one concise continuity record.
+
+Keep only durable facts future scenes may need: relationship status and milestones; promises and consequences; identities, powers, transformations, lasting injuries; major discoveries and who knows them; plot-relevant locations or objects; unresolved threads; stable preferences established in the RP.
+
+Drop prose flourishes, repeated affection, routine meals/outfits/minor actions, explicit mechanical sexual detail, temporary sensations, and duplicate facts.
+
+Use short bullets or compact sentences. Prefer concrete names and facts. Do not invent anything. Target roughly 250-450 words maximum.
+
+EXISTING COMPACT MEMORY:
+${ch.consolidatedMemory||"(none)"}
+
+NEW OLDER TRANSCRIPT:
+${transcript}`;
+
+  try{
+    const result=await openRouterRequest([
+      {role:"system",content:"Return only the compact continuity memory. No preamble."},
+      {role:"user",content:prompt}
+    ],700,0.15);
+    ch.consolidatedMemory=String(result||"").replace(/^```(?:text|markdown)?/i,"").replace(/```$/,"").trim();
+    ch.consolidatedThroughMessageId=cutoffMessage.id;
+    ch.updatedAt=now();saveVault();renderConsolidatedMemory();
+    updateConsolidationStatus(`Compacted ${slice.length} older messages. The full transcript is still preserved.`);
+  }catch(err){
+    updateConsolidationStatus(`Could not consolidate: ${err?.message||String(err)}`);
+  }finally{if(btn)btn.disabled=false}
+}
+
 function updateMemoryStatus(text=""){
   const el=$("memoryStatus");
   if(!el)return;
   if(text){el.textContent=text;return}
-  el.textContent=settings.autoMemory===false
-    ?"Automatic milestone memory is off."
-    :"Automatic milestone memory is on.";
+  if(settings.autoMemory===false){
+    el.textContent="Milestone flagging is off.";
+  }else if(activeChat()?.pendingMilestone){
+    el.textContent="Likely major milestone detected • tap Save Milestone Now when you want to store it.";
+  }else{
+    el.textContent="Budget mode on • milestone detection is local and uses no extra requests.";
+  }
 }
 
 function renderMilestones(){
@@ -365,13 +563,24 @@ function normalizeMilestoneResult(raw){
   }
 }
 
-async function maybeAutoSaveMilestone(){
+function maybeAutoSaveMilestone(){
   if(settings.autoMemory===false)return;
   if(!milestoneCandidateText())return;
-
   const ch=activeChat();
-  updateMemoryStatus("Checking for a major milestone…");
+  ch.pendingMilestone=true;
+  ch.pendingMilestoneAt=now();
+  saveVault();
+  updateMemoryStatus("Likely major milestone detected • tap Save Milestone Now when you want to store it.");
+}
 
+async function saveMilestoneNow(){
+  const ch=activeChat();
+  if(!ch.messages.length){
+    updateMemoryStatus("There is no recent scene to summarize.");
+    return;
+  }
+
+  updateMemoryStatus("Saving milestone…");
   const recent=ch.messages.slice(-8).map(m=>`${m.role==="user"?"USER":"CHARACTER"}: ${m.text}`).join("\n\n");
   const existing=ch.milestones.map(m=>`- ${m.text}`).join("\n")||"(none)";
 
@@ -387,13 +596,11 @@ Save only things such as:
 - death, betrayal, rescue, discovery, irreversible promise, major plot revelation
 - a lasting change in who knows what or how the relationship fundamentally stands
 
-DO NOT save:
-- ordinary flirting, kisses, meals, routine sex after an already-established sexual relationship
-- momentary emotions, temporary positions, clothing, minor actions, jokes, or atmospheric details
-- explicit mechanical sexual detail
+DO NOT save ordinary flirting, kisses, meals, routine sex after an already-established sexual relationship, momentary emotions, temporary positions, clothing, minor actions, jokes, atmospheric details, or explicit mechanical sexual detail.
 
-Return ONLY valid JSON in exactly one of these forms:
+Return ONLY valid JSON:
 {"milestone":"one concise neutral continuity sentence"}
+or
 {"milestone":null}
 
 EXISTING MILESTONES:
@@ -409,9 +616,10 @@ ${recent}`;
     ],140,0.1);
 
     const milestone=normalizeMilestoneResult(raw);
-
     if(!milestone){
-      updateMemoryStatus("No major milestone detected.");
+      updateMemoryStatus("No major milestone found.");
+      ch.pendingMilestone=false;
+      saveVault();
       return;
     }
 
@@ -420,21 +628,21 @@ ${recent}`;
       return a===b || a.includes(b) || b.includes(a);
     });
 
-    if(duplicate){
-      updateMemoryStatus("Milestone already remembered.");
-      return;
+    if(!duplicate){
+      ch.milestones.push({id:uid(),text:milestone,createdAt:now(),source:"manual"});
+      syncMilestonesToMemory();
+      ch.updatedAt=now();
+      renderMilestones();
     }
 
-    ch.milestones.push({id:uid(),text:milestone,createdAt:now(),source:"auto"});
-    syncMilestonesToMemory();
-    ch.updatedAt=now();
+    ch.pendingMilestone=false;
     saveVault();
-    renderMilestones();
-    updateMemoryStatus("Major milestone saved.");
+    updateMemoryStatus(duplicate?"Milestone already remembered.":"Major milestone saved.");
   }catch(err){
-    updateMemoryStatus(`Memory check skipped: ${err?.message||String(err)}`);
+    updateMemoryStatus(`Could not save milestone: ${err?.message||String(err)}`);
   }
 }
+
 
 function renderContextLists(){
   renderEntries($("loreList"),activeCharacter().lore,()=>activeCharacter().lore);
@@ -485,99 +693,91 @@ $("deleteCharacterBtn").addEventListener("click",()=>{
 });
 
 const messagesEl=$("messages");
+const scrollBottomBtn=$("scrollBottomBtn");
+
+function isMessagesNearBottom(){
+  return messagesEl.scrollHeight-messagesEl.scrollTop-messagesEl.clientHeight<90;
+}
+function updateScrollBottomButton(){
+  if(!scrollBottomBtn)return;
+  const chatActive=document.querySelector('[data-view="chat"]')?.classList.contains("active");
+  scrollBottomBtn.classList.toggle("hidden",!chatActive||isMessagesNearBottom());
+}
+function scrollMessagesToBottom(behavior="smooth"){
+  messagesEl.scrollTo({top:messagesEl.scrollHeight,behavior});
+  requestAnimationFrame(updateScrollBottomButton);
+}
+if(scrollBottomBtn)scrollBottomBtn.addEventListener("click",()=>scrollMessagesToBottom("smooth"));
+
+let lastChromeScrollY=0;
+let lastMessageScrollTop=0;
+let chromeHidden=false;
+function setChromeHidden(hidden){
+  if(chromeHidden===hidden)return;
+  chromeHidden=hidden;
+  document.body.classList.toggle("chrome-hidden",hidden);
+}
+function handleDirectionalChromeScroll(current,previous){
+  const delta=current-previous;
+  if(Math.abs(delta)<5)return;
+  if(current<18){setChromeHidden(false);return}
+  if(delta>0)setChromeHidden(true);
+  else setChromeHidden(false);
+}
+window.addEventListener("scroll",()=>{
+  const current=window.scrollY||document.documentElement.scrollTop||0;
+  handleDirectionalChromeScroll(current,lastChromeScrollY);
+  lastChromeScrollY=current;
+},{passive:true});
+messagesEl.addEventListener("scroll",()=>{
+  const current=messagesEl.scrollTop;
+  handleDirectionalChromeScroll(current,lastMessageScrollTop);
+  lastMessageScrollTop=current;
+  updateScrollBottomButton();
+},{passive:true});
+
 function renderMessages(){
   const c=activeCharacter(),ch=activeChat();
   messagesEl.innerHTML="";
-
   ch.messages.forEach((msg,index)=>{
+    if(msg.error && /^Connection error: Rate limit exceeded/i.test(msg.text||""))return;
+
+    if(msg.role==="command"||msg.role==="systemnote"){
+      const wrap=document.createElement("div");wrap.className="message command-message";
+      const body=document.createElement("div");body.className="command-chip";body.textContent=msg.text;
+      wrap.append(body);messagesEl.appendChild(wrap);return;
+    }
+
     const wrap=document.createElement("div");
     wrap.className=`message ${msg.role}${msg.error?" error":""}`;
-
-    const meta=document.createElement("div");
-    meta.className="meta";
+    const meta=document.createElement("div");meta.className="meta";
     meta.textContent=msg.role==="user"?"YOU":(c.name||"NOCTIS").toUpperCase();
-
-    const body=document.createElement("div");
-    body.className="message-body";
-    body.textContent=msg.text;
-
+    const body=document.createElement("div");body.className="message-body";body.textContent=msg.text;
     wrap.append(meta,body);
 
-    if(msg.role==="user" && !msg.error){
-      const tools=document.createElement("div");
-      tools.className="message-tools";
-
-      const editBtn=document.createElement("button");
-      editBtn.type="button";
-      editBtn.className="ghost";
-      editBtn.textContent="Edit";
-
+    if(msg.role==="user"&&!msg.error){
+      const tools=document.createElement("div");tools.className="message-tools";
+      const editBtn=document.createElement("button");editBtn.type="button";editBtn.className="ghost";editBtn.textContent="Edit";
       editBtn.addEventListener("click",()=>{
         if(wrap.querySelector(".message-edit"))return;
-
-        body.classList.add("hidden");
-        tools.classList.add("hidden");
-
-        const editor=document.createElement("textarea");
-        editor.className="message-edit";
-        editor.value=msg.text;
-
-        const actions=document.createElement("div");
-        actions.className="message-edit-actions";
-
-        const cancel=document.createElement("button");
-        cancel.type="button";
-        cancel.className="ghost small";
-        cancel.textContent="Cancel";
-
-        const save=document.createElement("button");
-        save.type="button";
-        save.className="send small";
-        save.textContent="Save";
-
-        cancel.addEventListener("click",()=>{
-          editor.remove();
-          actions.remove();
-          body.classList.remove("hidden");
-          tools.classList.remove("hidden");
-        });
-
+        body.classList.add("hidden");tools.classList.add("hidden");
+        const editor=document.createElement("textarea");editor.className="message-edit";editor.value=msg.text;
+        const actions=document.createElement("div");actions.className="message-edit-actions";
+        const cancel=document.createElement("button");cancel.type="button";cancel.className="ghost small";cancel.textContent="Cancel";
+        const save=document.createElement("button");save.type="button";save.className="send small";save.textContent="Save";
+        cancel.addEventListener("click",()=>{editor.remove();actions.remove();body.classList.remove("hidden");tools.classList.remove("hidden")});
         save.addEventListener("click",()=>{
-          const revised=editor.value.trim();
-          if(!revised){
-            alert("A message cannot be empty.");
-            return;
-          }
-
-          msg.text=revised;
-          msg.edited=true;
-          msg.editedAt=now();
-          ch.updatedAt=now();
-          saveVault();
-          renderMessages();
+          const revised=editor.value.trim();if(!revised){alert("A message cannot be empty.");return}
+          msg.text=revised;msg.edited=true;msg.editedAt=now();ch.updatedAt=now();saveVault();renderMessages();
         });
-
-        actions.append(cancel,save);
-        wrap.append(editor,actions);
-        editor.focus();
-        editor.setSelectionRange(editor.value.length,editor.value.length);
+        actions.append(cancel,save);wrap.append(editor,actions);editor.focus();editor.setSelectionRange(editor.value.length,editor.value.length);
       });
-
-      tools.append(editBtn);
-      wrap.append(tools);
+      tools.append(editBtn);wrap.append(tools);
     }
-
-    if(msg.edited){
-      const edited=document.createElement("div");
-      edited.className="meta";
-      edited.textContent="EDITED";
-      wrap.append(edited);
-    }
-
+    if(msg.edited){const edited=document.createElement("div");edited.className="meta";edited.textContent="EDITED";wrap.append(edited)}
     messagesEl.appendChild(wrap);
   });
-
-  messagesEl.scrollTop=messagesEl.scrollHeight;
+  messagesEl.scrollTop=messagesEl.scrollHeight;lastMessageScrollTop=messagesEl.scrollTop;updateScrollBottomButton();
 }
 function compileSystemPrompt(){
   const c=activeCharacter(),ch=activeChat();
@@ -600,14 +800,23 @@ ${c.voice || "(unspecified)"}
 CHARACTER-SPECIFIC RESPONSE DIRECTIVES
 ${c.directives || "(none)"}
 
+ACTIVE USER PERSONA — CANON FOR THIS TIMELINE
+${personaPrompt()}
+
 SHARED CANON MEMORY
 ${c.permanentMemory || "(none)"}
+
+CONSOLIDATED OLDER HISTORY
+${ch.consolidatedMemory || "(none)"}
 
 ACTIVE TIMELINE MEMORY
 ${ch.relationshipMemory || "(none)"}
 
 ACTIVE CHAT
 ${ch.title || "Main Story"}
+
+CAST FOCUS
+${ch.castFocus || "(none — use the full active cast as appropriate)"}
 
 CURRENT SCENE
 Location: ${ch.scene.location || "(unspecified)"}
@@ -644,6 +853,7 @@ NOCTIS CORE CONTINUITY RULES
 - Harmless environmental texture is allowed, but invented personal facts are not.
 - If an important personal detail is unknown, leave it unknown rather than guessing.
 - Preserve physical geography, positions, clothing, objects, injuries, transformations, elapsed time, and cause-and-effect.
+- BODY/PERSPECTIVE CONSISTENCY: Never reverse physical roles when switching between narration and dialogue. Track who is touching, holding, carrying, wearing, penetrating, containing, or positioned inside whom. First-person dialogue must preserve the same physical relationship already established by the scene.
 - Do not silently reset arguments, intimacy, danger, promises, emotional consequences, or unresolved events.
 - For a multi-character cast, keep each character's voice, knowledge, motives, actions, and dialogue distinct.
 - Take meaningful initiative as the character(s), but hand control back to the user as soon as their protagonist must respond.
@@ -653,9 +863,18 @@ NOCTIS CORE CONTINUITY RULES
 
 The model is the actor. Noctis owns canon and continuity. The user's protagonist remains theirs.`;
 }
-function apiMessages(){
+function apiMessages(extraSystem=""){
   const ch=activeChat();
-  return [{role:"system",content:compileSystemPrompt()},...ch.messages.slice(-40).filter(m=>!m.error).map(m=>({role:m.role,content:m.text}))];
+  const all=getConversationMessages(ch);
+  let live;
+  if(ch.consolidatedThroughMessageId){
+    const idx=all.findIndex(m=>m.id===ch.consolidatedThroughMessageId);
+    live=idx>=0?all.slice(idx+1):all.slice(-40);
+  }else live=all.slice(-40);
+
+  const out=[{role:"system",content:compileSystemPrompt()},...live.map(m=>({role:m.role,content:m.text}))];
+  if(extraSystem)out.push({role:"system",content:extraSystem});
+  return out;
 }
 async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){
   if(!settings.apiKey)throw new Error("Add your OpenRouter API key in Settings first.");
@@ -771,7 +990,7 @@ async function generateDirectedContinuation(mode){
     const msgs=apiMessages();
     msgs.push({role:"system",content:instruction});
     const reply=await openRouterRequest(msgs);
-    ch.messages.push({role:"assistant",text:reply,continuationMode:mode});
+    ch.messages.push({id:uid(),role:"assistant",text:reply,continuationMode:mode});
     ch.updatedAt=now();
     saveVault();
     renderMessages();
@@ -848,22 +1067,119 @@ ${settings.userTurnStyle||defaultSettings.userTurnStyle}`;
   }
 }
 
-async function generateReply(){
+
+function addCommandChip(text){
+  activeChat().messages.push({id:uid(),role:"command",text,createdAt:now()});
+  activeChat().updatedAt=now();saveVault();renderMessages();
+}
+function addManualMemory(text){
+  const ch=activeChat(),clean=text.trim();if(!clean)return;
+  if(!ch.milestones.some(m=>m.text.toLowerCase()===clean.toLowerCase())){
+    ch.milestones.push({id:uid(),text:clean,createdAt:now(),source:"command"});
+    syncMilestonesToMemory();renderMilestones();
+  }
+  saveVault();
+}
+function addPermanentCanon(text){
+  const c=activeCharacter(),clean=text.trim();if(!clean)return;
+  if(!(c.permanentMemory||"").toLowerCase().includes(clean.toLowerCase())){
+    c.permanentMemory=[(c.permanentMemory||"").trim(),`- ${clean}`].filter(Boolean).join("\n");
+    if($("memoryPermanent"))$("memoryPermanent").value=c.permanentMemory;
+  }
+  saveVault();
+}
+function forgetMemory(q){
+  q=q.trim().toLowerCase();if(!q)return 0;
+  const ch=activeChat();const before=ch.milestones.length;
+  ch.milestones=ch.milestones.filter(m=>!m.text.toLowerCase().includes(q));
+  if((ch.consolidatedMemory||"").toLowerCase().includes(q)){
+    ch.consolidatedMemory=ch.consolidatedMemory.split("\n").filter(line=>!line.toLowerCase().includes(q)).join("\n").trim();
+  }
+  syncMilestonesToMemory();renderMilestones();renderConsolidatedMemory();saveVault();
+  return before-ch.milestones.length;
+}
+function localStatusText(){
+  const c=activeCharacter(),ch=activeChat(),p=activePersona();
+  return `STATUS • ${c.name} • ${ch.title} • Persona: ${p?.name||"None"} • Scene: ${ch.scene.location||"unspecified"} • ${ch.scene.time||"time unspecified"} • Cast focus: ${ch.castFocus||"full cast"} • Open threads: ${ch.threads.length} • Compact memory: ${ch.consolidatedMemory?"yes":"no"} • Recent live messages: ${unconsolidatedMessages(ch).length}`;
+}
+async function handleChatCommand(text){
+  const first=text.indexOf(" ");const cmd=(first===-1?text:text.slice(0,first)).toLowerCase();const arg=(first===-1?"":text.slice(first+1)).trim();
+  const ch=activeChat();
+
+  if(cmd==="/continue"){addCommandChip("CONTINUE");await generateDirectedContinuation("continue");return true}
+  if(cmd==="/elaborate"){addCommandChip("ELABORATE");await generateDirectedContinuation("elaborate");return true}
+  if(cmd==="/ooc"){
+    if(!arg){addCommandChip("OOC requires an instruction.");return true}
+    addCommandChip(`OOC • ${arg}`);
+    await generateReply(`ENGINE-ONLY OOC INSTRUCTION: ${arg}\nThis is direction from the user, not dialogue or canon. Follow it for the next reply without treating the instruction itself as something the protagonist said or did.`);
+    return true;
+  }
+  if(cmd==="/timeskip"){
+    if(!arg){addCommandChip("TIMESKIP requires an amount or destination, e.g. /timeskip 3 hours.");return true}
+    ch.scene.time=arg;if($("sceneTime"))$("sceneTime").value=arg;addCommandChip(`TIME SKIP • ${arg}`);
+    await generateReply(`ENGINE-ONLY TIME SKIP: Advance the scene by ${arg}. Bridge time only with NPC/world events that do not invent actions, dialogue, feelings, or decisions for the user's protagonist. Re-establish the scene and stop at the next protagonist response point.`);
+    return true;
+  }
+  if(cmd==="/rewind"){
+    let n=parseInt(arg||"2",10);if(!Number.isFinite(n)||n<1)n=2;n=Math.min(n,ch.messages.length);
+    ch.messages.splice(Math.max(0,ch.messages.length-n),n);ch.updatedAt=now();saveVault();renderMessages();
+    addCommandChip(`REWIND • removed ${n} message${n===1?"":"s"}`);return true;
+  }
+  if(cmd==="/scene"){
+    if(!arg){addCommandChip(`SCENE • ${ch.scene.state||"(unset)"}`);return true}
+    ch.scene.state=arg;if($("sceneState"))$("sceneState").value=arg;ch.updatedAt=now();saveVault();addCommandChip(`SCENE SET • ${arg}`);return true;
+  }
+  if(cmd==="/memory"){
+    if(!arg){addCommandChip("MEMORY requires a concise continuity fact.");return true}
+    addManualMemory(arg);addCommandChip(`MEMORY SAVED • ${arg}`);return true;
+  }
+  if(cmd==="/forget"){
+    if(!arg){addCommandChip("FORGET requires words matching the saved memory.");return true}
+    const n=forgetMemory(arg);addCommandChip(`MEMORY REMOVAL • ${n} milestone${n===1?"":"s"} matched "${arg}"`);return true;
+  }
+  if(cmd==="/canon"){
+    if(!arg){addCommandChip("CANON requires a hard continuity fact.");return true}
+    addPermanentCanon(arg);addCommandChip(`CANON ADDED • ${arg}`);return true;
+  }
+  if(cmd==="/persona"){
+    if(!arg){addCommandChip(`PERSONA • ${activePersona()?.name||"None"}`);return true}
+    const target=vault.personas.find(p=>p.name.toLowerCase()===arg.toLowerCase())||vault.personas.find(p=>String(p.slot)===arg);
+    if(!target){addCommandChip(`PERSONA NOT FOUND • ${arg}`);return true}
+    ch.activePersonaId=target.id;ch.updatedAt=now();saveVault();renderPersonas();renderPersonaFields();renderPersonaBadge();addCommandChip(`PERSONA SWITCHED • ${target.name}`);return true;
+  }
+  if(cmd==="/cast"){ch.castFocus=arg;ch.updatedAt=now();saveVault();addCommandChip(arg?`CAST FOCUS • ${arg}`:"CAST FOCUS CLEARED • full cast");return true}
+  if(cmd==="/status"){addCommandChip(localStatusText());return true}
+  if(cmd==="/summary"){
+    addCommandChip("SUMMARY • generating concise current-state recap");
+    try{
+      const summary=await openRouterRequest(apiMessages(`ENGINE-ONLY TASK: Summarize the current roleplay state in concise bullets. Include relationship status, immediate scene/physical continuity, important knowledge, promises/consequences, and unresolved threads. Do not invent anything and do not advance the story.`),500,0.1);
+      ch.messages.push({id:uid(),role:"systemnote",text:`CURRENT SUMMARY\n${summary}`,createdAt:now()});ch.updatedAt=now();saveVault();renderMessages();
+    }catch(err){addCommandChip(`SUMMARY FAILED • ${err?.message||String(err)}`)}
+    return true;
+  }
+  addCommandChip(`UNKNOWN COMMAND • ${cmd}`);return true;
+}
+
+async function generateReply(extraSystem=""){
   const send=$("sendBtn");
   send.disabled=true;
   send.textContent="…";
   $("connectionStatus").textContent="thinking…";
   try{
-    const reply=await openRouterRequest(apiMessages());
-    activeChat().messages.push({role:"assistant",text:reply});
+    const reply=await openRouterRequest(apiMessages(extraSystem));
+    activeChat().messages.push({id:uid(),role:"assistant",text:reply});
     activeChat().updatedAt=now();
     saveVault();
     renderMessages();
     $("connectionStatus").textContent=`connected • ${settings.model}`;
     maybeAutoSaveMilestone();
   }catch(err){
-    // Keep the user's turn intact and don't pollute the RP transcript with provider errors.
-    $("connectionStatus").textContent=`temporary model hiccup • tap Regen`;
+    const msg=String(err?.message||err);
+    if(/rate limit|free-models-per-day|code:\s*429|code: 429/i.test(msg)){
+      $("connectionStatus").textContent="daily free-model limit reached";
+    }else{
+      $("connectionStatus").textContent="temporary model hiccup • tap Regen";
+    }
     console.warn("Noctis model error:", err);
   }finally{
     send.disabled=false;
@@ -871,8 +1187,12 @@ async function generateReply(){
   }
 }
 $("chatForm").addEventListener("submit",async e=>{
-  e.preventDefault();const input=$("messageInput"),text=input.value.trim();if(!text)return;
-  activeChat().messages.push({role:"user",text});activeChat().updatedAt=now();input.value="";saveVault();renderMessages();await generateReply();
+  e.preventDefault();
+  const input=$("messageInput"),text=input.value.trim();if(!text)return;
+  input.value="";
+  if(text.startsWith("/")){await handleChatCommand(text);return}
+  activeChat().messages.push({id:uid(),role:"user",text});activeChat().updatedAt=now();saveVault();renderMessages();updateConsolidationStatus();
+  await generateReply();
 });
 $("continueBtn").addEventListener("click",()=>generateDirectedContinuation("continue"));
 $("elaborateBtn").addEventListener("click",()=>generateDirectedContinuation("elaborate"));
@@ -916,7 +1236,7 @@ Write Jesse's next response in 1–3 paragraphs. Do not write or imply Amanda's 
 $("exportBtn").addEventListener("click",()=>{
   const backup={...vault,exportedAt:now(),settingsExcluded:true};
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=`noctis-vault-backup-v0.4-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
+  a.href=url;a.download=`noctis-vault-backup-v0.7-${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
 });
 $("importInput").addEventListener("change",async e=>{
   const file=e.target.files?.[0];if(!file)return;
@@ -924,11 +1244,11 @@ $("importInput").addEventListener("change",async e=>{
     const raw=await file.text();
     if(file.name.toLowerCase().endsWith(".txt")){
       const ch=activeChat();
-      ch.messages.push({role:"assistant",text:`[Imported transcript archive: ${file.name}]\n\n${raw}`});
+      ch.messages.push({id:uid(),role:"assistant",text:`[Imported transcript archive: ${file.name}]\n\n${raw}`});
       ch.updatedAt=now();saveVault();renderAll();alert("Text transcript archived in the active chat. Structured transcript parsing is coming next.");
     }else{
       const parsed=JSON.parse(raw);
-      if((parsed?.version==="0.3"||parsed?.version==="0.4")&&Array.isArray(parsed.characters)){vault=parsed}
+      if((["0.3","0.4","0.7"].includes(parsed?.version))&&Array.isArray(parsed.characters)){vault=parsed;normalizeVaultV07()}
       else if(parsed?.character||parsed?.messages){vault=migrateLegacy(parsed)}
       else throw new Error("Unknown Noctis format");
       saveVault();renderAll();alert("Import complete.");
@@ -1026,7 +1346,7 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   if(!items.length){alert("Paste a transcript first.");return}
   const ch=activeChat();
   if(!confirm(`Import ${items.length} transcript block${items.length===1?"":"s"} into "${ch.title}"?`))return;
-  ch.messages.push(...items.map(x=>({role:x.role,text:x.text,archivedImport:true})));
+  ch.messages.push(...items.map(x=>({id:uid(),role:x.role,text:x.text,archivedImport:true})));
   ch.updatedAt=now();
   saveVault();
   $("rescueText").value="";
@@ -1036,5 +1356,5 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   selectTab("chat");
 });
 
-function renderAll(){renderLibrary();renderBasics();renderContextLists();renderMilestones();renderMessages();renderChatList()}
-bindBasics();renderAll();saveVault();
+function renderAll(){normalizeVaultV07();renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
+bindBasics();bindPersonaFields();renderAll();saveVault();

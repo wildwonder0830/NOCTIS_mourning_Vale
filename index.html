@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
-  <link rel="stylesheet" href="styles.css?v=0.6.1" />
+  <link rel="stylesheet" href="styles.css?v=0.7.0" />
 </head>
 <body>
   <header class="topbar">
@@ -22,6 +22,7 @@
   <nav class="tabs" aria-label="Engine sections">
     <button data-tab="library" class="tab active">Library</button>
     <button data-tab="character" class="tab">Character</button>
+    <button data-tab="persona" class="tab">Persona</button>
     <button data-tab="chat" class="tab">Chat</button>
     <button data-tab="memory" class="tab">Memory</button>
     <button data-tab="lore" class="tab">Lore</button>
@@ -61,11 +62,41 @@
       </div>
     </section>
 
+
+    <section class="view" data-view="persona">
+      <div class="panel">
+        <div class="section-title-row">
+          <div>
+            <h2>Persona Vault</h2>
+            <p class="hint">Four reusable protagonist identities. Each timeline remembers which persona it is using.</p>
+          </div>
+        </div>
+
+        <div id="personaSlotRow" class="persona-slot-row" aria-label="Persona slots"></div>
+
+        <label>Name<input id="personaName" placeholder="Amanda" /></label>
+        <div class="field-grid">
+          <label>Age / Life stage<input id="personaAge" placeholder="Adult" /></label>
+          <label>Pronouns<input id="personaPronouns" placeholder="she/her" /></label>
+          <label>Species / Nature<input id="personaSpecies" placeholder="Human, witch, vampire…" /></label>
+          <label>Occupation / Role<input id="personaOccupation" placeholder="Artist, queen, student…" /></label>
+        </div>
+        <label>Relationship style<input id="personaRelationship" placeholder="Fated mate, slow burn, established…" /></label>
+        <label>Appearance / Body<textarea id="personaAppearance" rows="4"></textarea></label>
+        <label>Personality<textarea id="personaPersonality" rows="4"></textarea></label>
+        <label>Powers / Abilities<textarea id="personaPowers" rows="3"></textarea></label>
+        <label>Background / Canon<textarea id="personaCanon" rows="5"></textarea></label>
+        <label>Preferences / RP Notes<textarea id="personaPreferences" rows="4"></textarea></label>
+        <p class="hint">Global hard limits remain in Settings and apply regardless of persona.</p>
+      </div>
+    </section>
+
     <section class="view" data-view="chat">
       <div class="chat-shell">
         <div class="chat-header">
           <div>
             <div id="chatCharacterName" class="chat-name">Noctis</div>
+            <div id="activePersonaBadge" class="persona-badge"></div>
             <div id="activeChatTitle" class="chat-subtitle">Main Story</div>
             <div id="connectionStatus" class="status">local state ready</div>
           </div>
@@ -89,11 +120,15 @@
           <button id="deleteChatBtn" class="ghost danger small">Delete Chat</button>
         </div>
 
-        <div id="messages" class="messages"></div>
+        <div class="messages-wrap">
+          <div id="messages" class="messages"></div>
+          <button id="scrollBottomBtn" class="scroll-bottom hidden" type="button" aria-label="Scroll to latest message" title="Scroll to latest message">↓</button>
+        </div>
 
         <div class="composer-dock">
           <form id="chatForm" class="composer">
             <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
+            <div class="command-hint">Commands: /ooc · /continue · /elaborate · /timeskip · /rewind · /scene · /summary · /memory · /forget · /canon · /persona · /cast · /status</div>
             <button type="submit" id="sendBtn" class="send">Send</button>
 
             <div class="quick-actions" aria-label="Quick roleplay actions">
@@ -117,6 +152,19 @@
 
         <h2 class="subhead">Active Chat Memory</h2>
         <label>Relationship / Timeline Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
+
+        <div class="memory-compact-card">
+          <div class="section-title-row">
+            <div>
+              <h2 class="subhead">Consolidated Memory</h2>
+              <p class="hint">Compress older RP history into a small continuity record while keeping the full transcript untouched.</p>
+            </div>
+            <button id="consolidateMemoryBtn" class="ghost small" type="button">Consolidate Older History</button>
+          </div>
+          <textarea id="consolidatedMemory" rows="7" placeholder="Older history will be summarized here. You can edit it manually."></textarea>
+          <div id="consolidationStatus" class="test-result"></div>
+        </div>
+
         <div class="section-title-row">
           <div>
             <h2 class="subhead">Auto-Saved Milestones</h2>
@@ -237,9 +285,12 @@
         <h2 class="subhead">Automatic Memory</h2>
         <label class="toggle-row">
           <input id="autoMemory" type="checkbox" />
-          <span>Automatically save major continuity milestones</span>
+          <span>Flag likely milestones locally</span>
         </label>
-        <p class="hint">Noctis only runs the memory checker when recent text looks like a major relationship, identity, world, or plot change. This avoids spending a second model request on every single turn.</p>
+        <p class="hint">Budget mode: Noctis flags likely milestones without making an extra model request. Use “Save Milestone Now” only when you want to spend one request to summarize the current major event.</p>
+        <div class="button-row">
+          <button id="saveMilestoneNowBtn" class="ghost" type="button">Save Milestone Now</button>
+        </div>
         <div id="memoryStatus" class="test-result"></div>
 
         <h2 class="subhead">Generation</h2>
@@ -268,6 +319,6 @@
     </div>
   </template>
 
-  <script src="app.js?v=0.6.1"></script>
+  <script src="app.js?v=0.7.0"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.6.1
+# Noctis Mourning Vale — v0.7.0
 
 A browser-based personal character/RP vault.
 
@@ -220,3 +220,67 @@ The Settings field remains editable so more limits can be added later.
 - If all retries fail, the user's post remains untouched and the status line says to tap Regen.
 - Automatic milestone memory remains enabled and unchanged.
 - API-key storage, chats, and vault data are unchanged.
+
+
+## v0.6.2 Free-quota budget mode
+
+- Automatic milestone detection is now local-only and costs zero model requests.
+- Likely milestones are flagged for review instead of immediately making a second API call.
+- **Save Milestone Now** performs one small model request only when the user chooses.
+- Existing rate-limit error bubbles are hidden from the RP display.
+- A 429 daily-limit error is shown only in the small status line.
+- Normal RP, Continue, Elaborate, My Turn, and Regen still use the selected model normally.
+- API-key storage and existing vault data are unchanged.
+
+
+## v0.6.3 mobile reading controls
+
+- The global Noctis header now slides away while scrolling down and returns when scrolling back up.
+- The tab bar moves to the top while the header is hidden, preserving navigation space.
+- Chat scrolling also drives the auto-hide behavior, which matters because the transcript uses its own scroll area on mobile.
+- A floating ↓ button appears whenever the chat is away from the newest message and smoothly returns to the bottom.
+- The ↓ button hides automatically when already near the latest message.
+- Existing vault data, chats, model settings, and API-key storage are unchanged.
+
+
+## v0.7.0 — Personas, commands, compact memory
+
+### Four user personas
+- Four reusable protagonist persona slots in the new **Persona** tab.
+- Each chat/timeline remembers its active persona.
+- Persona data includes identity, appearance, personality, powers, canon, and RP preferences.
+- The active persona is injected into the system prompt and shown in Chat.
+
+### Chat commands
+- `/ooc <instruction>`
+- `/continue`
+- `/elaborate`
+- `/timeskip <amount>`
+- `/rewind <number>`
+- `/scene <description>`
+- `/summary`
+- `/memory <fact>`
+- `/forget <text>`
+- `/canon <fact>`
+- `/persona <name or slot>`
+- `/cast <name>`
+- `/status`
+
+Commands render as engine chips and are not treated as protagonist dialogue.
+
+### Consolidated memory
+- The full transcript remains preserved.
+- **Consolidate Older History** compresses older turns into a small continuity record and leaves the newest 16 transcript messages live.
+- Future requests send the compact history plus the live recent transcript instead of repeatedly sending the entire old scene history.
+- Consolidation is manual so it never spends an extra model request unless the user chooses it.
+- The compact summary remains editable.
+
+### Continuity fix
+- Added body/perspective consistency so dialogue cannot casually reverse who is touching, holding, carrying, wearing, penetrating, containing, or positioned inside whom.
+
+### Preserved from v0.6.3
+- Auto-hiding header on downward scroll.
+- Header returns on upward scroll.
+- Floating scroll-to-bottom button.
+- Existing OpenRouter API-key storage key is unchanged.
+- Existing vaults migrate in place.
