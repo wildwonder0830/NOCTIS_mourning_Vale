@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.7.4
+# Noctis Mourning Vale — v0.7.5
 
 A browser-based personal character/RP vault.
 
@@ -318,3 +318,10 @@ Commands render as engine chips and are not treated as protagonist dialogue.
 - The Persona tab's **Import Persona** button still works too.
 - Wrapped `.noctis-persona.json`, `{ persona: ... }`, and direct persona JSON objects are accepted.
 - Persona imports fill the currently active persona slot only and do not alter characters, chats, memories, settings, or the API key.
+
+
+## v0.7.5 — One-tap Amanda 24 preset
+- Adds a visible **v0.7.5** build badge in the header so it is obvious when GitHub Pages/Safari is serving the updated code.
+- Adds **Load Amanda 24 Preset** in the Persona tab.
+- The preset bypasses file import entirely and fills only the currently selected persona slot.
+- Existing characters, Jesse, chats, memories, sync data, settings, and API key are untouched.

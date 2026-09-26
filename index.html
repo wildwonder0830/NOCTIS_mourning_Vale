@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
-  <link rel="stylesheet" href="styles.css?v=0.7.4" />
+  <link rel="stylesheet" href="styles.css?v=0.7.5" />
 </head>
 <body>
   <header id="topbar" class="topbar">
     <div>
-      <div class="eyebrow">NOCTIS MOURNING VALE</div>
+      <div class="eyebrow">NOCTIS MOURNING VALE <span id="buildBadge" class="build-badge">v0.7.5</span></div>
       <h1>Character Vault</h1>
     </div>
     <div class="top-actions">
@@ -75,6 +75,7 @@
 
         <div id="personaSlotRow" class="persona-slot-row" aria-label="Persona slots"></div>
         <div class="persona-file-actions">
+          <button id="loadAmanda24PresetBtn" class="send" type="button">Load Amanda 24 Preset</button>
           <button id="importPersonaBtn" class="ghost" type="button">Import Persona</button>
           <button id="exportPersonaBtn" class="ghost" type="button">Export Active Persona</button>
           <input id="personaImportInput" type="file" accept=".json,.noctis-persona.json,application/json" hidden />
@@ -326,7 +327,7 @@
     </div>
   </template>
 
-  <script src="app.js?v=0.7.4"></script>
+  <script src="app.js?v=0.7.5"></script>
 
   <input id="syncImportInput" type="file" accept=".json,.noctis,application/json" hidden />
 

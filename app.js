@@ -1,3 +1,4 @@
+const NOCTIS_BUILD="0.7.5";
 const STORAGE_KEY="noctis-mourning-vale-v0.3";
 const LEGACY_KEY="noctis-mourning-vale-v0.2";
 const SETTINGS_KEY="noctis-private-settings-v0.4";
@@ -258,6 +259,32 @@ function renderPersonaFields(){
   Object.entries(map).forEach(([id,key])=>{if($(id))$(id).value=p[key]||""});
 }
 
+
+const AMANDA_24_PRESET={
+  name:"Amanda — 24",
+  age:"24-year-old adult woman",
+  pronouns:"she/her",
+  species:"Appears fully human; secretly an immortal witch",
+  occupation:"Independent creative young woman; outwardly ordinary",
+  relationshipStyle:"Deeply emotional, loyal, intense, sensual, guarded at first; fiercely committed once bonded",
+  appearance:"Petite at 4'11\" with a soft, voluptuous hourglass figure, very fair skin, thick dark lashes, and hazel eyes that can read green, brown, gray, or gold depending on the light. Dark hair and a feminine gothic style. She looks delicate at first glance but carries herself with quiet confidence.",
+  personality:"Intelligent, observant, witty, stubborn, playful, emotionally intense, and difficult to intimidate. She has a sharp mouth when provoked, dry humor, a mischievous streak, and strong loyalty. She notices small details, dislikes being underestimated or lied to, and can be teasing, bratty, affectionate, protective, and unexpectedly tender with people she trusts.",
+  powers:"Amanda is secretly an immortal witch with immense natural magic. She does not age and cannot die by ordinary means. Her magic is instinctive and tied to will, emotion, intention, blood, and ancient forces. Potential abilities include protection, wards, destructive magic, energy manipulation, supernatural sensing, and other powers that can emerge naturally through the story. She is practiced at hiding all evidence of magic.",
+  canon:"Amanda has hidden both her immortality and her witch nature from everyone. To friends, family, coworkers, romantic interests, and strangers, she is simply a normal healthy 24-year-old woman. No one knows the truth unless it is revealed during the roleplay. She learned long ago that discovery could make her a target, so concealment is second nature. Revealing what she is should be treated as a major relationship or plot milestone.",
+  preferences:"Amanda controls her own dialogue, thoughts, feelings, choices, and physical actions. NPCs may pursue, flirt, provoke, challenge, misread, protect, or act on their own initiative, but they must never narrate Amanda's response for her. Favor strong personalities, emotional intensity, possessiveness, wit, tension, supernatural themes, fate, loyalty, and characters who take meaningful initiative. Her immortality and magic remain hidden until the story creates a compelling reason for discovery or revelation."
+};
+function loadAmanda24Preset(){
+  const p=activePersona();
+  const keys=["name","age","pronouns","species","occupation","relationshipStyle","appearance","personality","powers","canon","preferences"];
+  keys.forEach(k=>p[k]=AMANDA_24_PRESET[k]||"");
+  p.updatedAt=now();
+  saveVault();
+  renderPersonaFields();
+  renderPersonas();
+  renderPersonaBadge();
+  alert(`Loaded Amanda 24 into persona slot ${p.slot}.`);
+}
+
 function personaExportFilename(p=activePersona()){
   const safe=(p?.name||"persona").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"persona";
   return `${safe}.noctis-persona.json`;
@@ -444,6 +471,8 @@ async function importSyncFile(file){
 }
 
 function bindBasics(){
+  if($("loadAmanda24PresetBtn"))$("loadAmanda24PresetBtn").addEventListener("click",loadAmanda24Preset);
+
 
   if($("importPersonaBtn"))$("importPersonaBtn").addEventListener("click",()=>$("personaImportInput")?.click());
   if($("exportPersonaBtn"))$("exportPersonaBtn").addEventListener("click",exportActivePersona);

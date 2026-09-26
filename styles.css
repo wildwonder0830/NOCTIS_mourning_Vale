@@ -225,3 +225,5 @@ body.chrome-hidden .tabs{top:0!important}
 
 .persona-file-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
 @media(max-width:560px){.persona-file-actions button{flex:1 1 100%}}
+
+.build-badge{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid var(--line);border-radius:999px;font-size:10px;color:var(--accent2);vertical-align:1px}
