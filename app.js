@@ -257,6 +257,65 @@ function renderPersonaFields(){
   };
   Object.entries(map).forEach(([id,key])=>{if($(id))$(id).value=p[key]||""});
 }
+
+function personaExportFilename(p=activePersona()){
+  const safe=(p?.name||"persona").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"persona";
+  return `${safe}.noctis-persona.json`;
+}
+function exportActivePersona(){
+  const p=activePersona();
+  const payload={
+    app:"Noctis Mourning Vale",
+    format:"noctis-persona",
+    version:"0.7.3",
+    exportedAt:new Date().toISOString(),
+    persona:{
+      name:p.name||"",age:p.age||"",pronouns:p.pronouns||"",species:p.species||"",
+      occupation:p.occupation||"",relationshipStyle:p.relationshipStyle||"",
+      appearance:p.appearance||"",personality:p.personality||"",powers:p.powers||"",
+      canon:p.canon||"",preferences:p.preferences||""
+    }
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=personaExportFilename(p);
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function applyPersonaImport(src){
+  if(!src || typeof src!=="object")throw new Error("That file is not a Noctis persona import.");
+  const p=activePersona();
+  const keys=["name","age","pronouns","species","occupation","relationshipStyle","appearance","personality","powers","canon","preferences"];
+  keys.forEach(k=>p[k]=typeof src[k]==="string"?src[k]:"");
+  p.updatedAt=now();
+  saveVault();
+  renderPersonaFields();renderPersonas();renderPersonaBadge();
+  return p;
+}
+
+async function importPersonaFile(file){
+  if(!file)return;
+  try{
+    const parsed=JSON.parse(await file.text());
+    let src=null;
+
+    if(parsed?.format==="noctis-persona" && parsed?.persona) src=parsed.persona;
+    else if(parsed?.persona && typeof parsed.persona==="object") src=parsed.persona;
+    else if(parsed?.name && (parsed?.appearance!==undefined || parsed?.personality!==undefined || parsed?.canon!==undefined)) src=parsed;
+
+    if(!src)throw new Error("That file is not a Noctis persona import.");
+
+    const p=applyPersonaImport(src);
+    alert(`Imported persona into slot ${p.slot}: ${p.name||`Persona ${p.slot}`}`);
+  }catch(err){
+    alert(`Could not import persona: ${err?.message||String(err)}`);
+  }finally{
+    const input=$("personaImportInput");if(input)input.value="";
+  }
+}
+
 function bindPersonaFields(){
   const map={
     personaName:"name",personaAge:"age",personaPronouns:"pronouns",
@@ -328,7 +387,76 @@ function renderBasics(){
   updateConnectionStatus();
   updateMemoryStatus();
 }
+
+function syncFilename(){
+  const d=new Date();
+  const stamp=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}-${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}`;
+  return `noctis-sync-${stamp}.json`;
+}
+function makeSyncPayload(){
+  normalizeVaultV07();
+  return {app:"Noctis Mourning Vale",format:"noctis-sync",version:"0.7.2",exportedAt:new Date().toISOString(),vault};
+}
+function setSyncStatus(msg){const el=$("syncStatus");if(el)el.textContent=msg||""}
+function openSyncModal(){const el=$("syncModal");if(el)el.classList.remove("hidden");setSyncStatus("")}
+function closeSyncModal(){const el=$("syncModal");if(el)el.classList.add("hidden")}
+async function shareCurrentVault(){
+  try{
+    saveVault();
+    const text=JSON.stringify(makeSyncPayload(),null,2);
+    const file=new File([text],syncFilename(),{type:"application/json"});
+    if(navigator.canShare && navigator.canShare({files:[file]}) && navigator.share){
+      setSyncStatus("Opening the share sheet…");
+      await navigator.share({files:[file],title:"Noctis Vault",text:"Noctis vault transfer"});
+      setSyncStatus("Vault shared. Import that file on the other device.");
+      return;
+    }
+    const blob=new Blob([text],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setSyncStatus("Vault file saved. Move it with Files, iCloud Drive, AirDrop, or another file-sharing method.");
+  }catch(err){
+    if(err?.name==="AbortError"){setSyncStatus("Share cancelled.");return}
+    setSyncStatus(`Could not share vault: ${err?.message||String(err)}`);
+  }
+}
+async function importSyncFile(file){
+  if(!file)return;
+  try{
+    const text=await file.text();
+    const parsed=JSON.parse(text);
+    let incoming=null;
+    if(parsed?.format==="noctis-sync" && parsed?.vault?.characters)incoming=parsed.vault;
+    else if(Array.isArray(parsed?.characters))incoming=parsed;
+    if(!incoming)throw new Error("That file does not look like a Noctis vault.");
+    vault=incoming;
+    normalizeVaultV07();
+    saveVault();
+    renderAll();
+    setSyncStatus(`Imported ${vault.characters?.length||0} character vault entr${vault.characters?.length===1?"y":"ies"} successfully.`);
+  }catch(err){
+    setSyncStatus(`Could not import vault: ${err?.message||String(err)}`);
+  }finally{
+    const input=$("syncImportInput");if(input)input.value="";
+  }
+}
+
 function bindBasics(){
+
+  if($("importPersonaBtn"))$("importPersonaBtn").addEventListener("click",()=>$("personaImportInput")?.click());
+  if($("exportPersonaBtn"))$("exportPersonaBtn").addEventListener("click",exportActivePersona);
+  if($("personaImportInput"))$("personaImportInput").addEventListener("change",e=>importPersonaFile(e.target.files?.[0]));
+
+
+  if($("syncBtn"))$("syncBtn").addEventListener("click",openSyncModal);
+  if($("syncCloseBtn"))$("syncCloseBtn").addEventListener("click",closeSyncModal);
+  if($("shareSyncBtn"))$("shareSyncBtn").addEventListener("click",shareCurrentVault);
+  if($("importSyncBtn"))$("importSyncBtn").addEventListener("click",()=>$("syncImportInput")?.click());
+  if($("syncImportInput"))$("syncImportInput").addEventListener("change",e=>importSyncFile(e.target.files?.[0]));
+  if($("syncModal"))$("syncModal").addEventListener("click",e=>{if(e.target===$("syncModal"))closeSyncModal()});
+
   const charMap={charName:"name",charRole:"role",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
   Object.entries(charMap).forEach(([id,key])=>$(id).addEventListener("input",e=>{
     activeCharacter()[key]=e.target.value;activeCharacter().updatedAt=now();saveVault();
@@ -694,47 +822,134 @@ $("deleteCharacterBtn").addEventListener("click",()=>{
 
 const messagesEl=$("messages");
 const scrollBottomBtn=$("scrollBottomBtn");
+const topbarEl=$("topbar");
 
+function chatViewActive(){
+  return document.querySelector('[data-view="chat"]')?.classList.contains("active");
+}
+function documentScrollTop(){
+  return window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+}
+function messagesScrollable(){
+  return messagesEl && messagesEl.scrollHeight > messagesEl.clientHeight + 8;
+}
 function isMessagesNearBottom(){
-  return messagesEl.scrollHeight-messagesEl.scrollTop-messagesEl.clientHeight<90;
+  if(!messagesEl)return true;
+  return messagesEl.scrollHeight-messagesEl.scrollTop-messagesEl.clientHeight<60;
+}
+function composerNearViewportBottom(){
+  const composer=document.querySelector(".composer-dock");
+  if(!composer)return true;
+  const r=composer.getBoundingClientRect();
+  return r.bottom <= window.innerHeight + 40 && r.top < window.innerHeight;
 }
 function updateScrollBottomButton(){
   if(!scrollBottomBtn)return;
-  const chatActive=document.querySelector('[data-view="chat"]')?.classList.contains("active");
-  scrollBottomBtn.classList.toggle("hidden",!chatActive||isMessagesNearBottom());
+  if(!chatViewActive()){
+    scrollBottomBtn.classList.add("hidden");
+    return;
+  }
+
+  // On chat, keep the button visible whenever there is meaningful transcript
+  // content. Dim it slightly when already at the bottom rather than removing it.
+  const hasContent=getConversationMessages(activeChat()).length>1 || messagesScrollable();
+  scrollBottomBtn.classList.toggle("hidden",!hasContent);
+  const alreadyThere=isMessagesNearBottom() && composerNearViewportBottom();
+  scrollBottomBtn.classList.toggle("at-bottom",alreadyThere);
+  scrollBottomBtn.setAttribute("aria-label",alreadyThere?"Already at latest message":"Scroll to latest message");
 }
 function scrollMessagesToBottom(behavior="smooth"){
-  messagesEl.scrollTo({top:messagesEl.scrollHeight,behavior});
-  requestAnimationFrame(updateScrollBottomButton);
+  if(messagesEl){
+    messagesEl.scrollTo({top:messagesEl.scrollHeight,behavior});
+  }
+  const composer=document.querySelector(".composer-dock");
+  if(composer){
+    // Safari sometimes ignores an internal scroller when the page itself is
+    // also scrolled. Bring the composer into view too.
+    setTimeout(()=>composer.scrollIntoView({behavior,block:"end"}),30);
+  }
+  setTimeout(updateScrollBottomButton,260);
 }
 if(scrollBottomBtn)scrollBottomBtn.addEventListener("click",()=>scrollMessagesToBottom("smooth"));
 
-let lastChromeScrollY=0;
-let lastMessageScrollTop=0;
+let lastPageY=documentScrollTop();
+let lastMessageY=messagesEl?.scrollTop||0;
+let lastTouchY=null;
 let chromeHidden=false;
+let revealTimer=null;
+
 function setChromeHidden(hidden){
-  if(chromeHidden===hidden)return;
+  if(!topbarEl)return;
   chromeHidden=hidden;
   document.body.classList.toggle("chrome-hidden",hidden);
 }
-function handleDirectionalChromeScroll(current,previous){
-  const delta=current-previous;
-  if(Math.abs(delta)<5)return;
-  if(current<18){setChromeHidden(false);return}
-  if(delta>0)setChromeHidden(true);
-  else setChromeHidden(false);
+function showChromeTemporarily(){
+  setChromeHidden(false);
+  clearTimeout(revealTimer);
+  // If the user is in Chat and not at the very top, the header goes away
+  // again after a short pause so it does not eat screen space.
+  if(chatViewActive() && documentScrollTop()>28){
+    revealTimer=setTimeout(()=>setChromeHidden(true),1100);
+  }
 }
+function reactToScrollDirection(current,previous,source){
+  const delta=current-previous;
+  if(Math.abs(delta)<3)return;
+
+  const nearTop = source==="page" ? current<22 : (current<8 && documentScrollTop()<22);
+  if(nearTop){
+    setChromeHidden(false);
+    return;
+  }
+
+  if(delta>0){
+    // Scrolling down = maximize reading space.
+    setChromeHidden(true);
+  }else{
+    // Scrolling up = reveal controls.
+    showChromeTemporarily();
+  }
+}
+
 window.addEventListener("scroll",()=>{
-  const current=window.scrollY||document.documentElement.scrollTop||0;
-  handleDirectionalChromeScroll(current,lastChromeScrollY);
-  lastChromeScrollY=current;
-},{passive:true});
-messagesEl.addEventListener("scroll",()=>{
-  const current=messagesEl.scrollTop;
-  handleDirectionalChromeScroll(current,lastMessageScrollTop);
-  lastMessageScrollTop=current;
+  const current=documentScrollTop();
+  reactToScrollDirection(current,lastPageY,"page");
+  lastPageY=current;
   updateScrollBottomButton();
 },{passive:true});
+
+if(messagesEl){
+  messagesEl.addEventListener("scroll",()=>{
+    const current=messagesEl.scrollTop;
+    reactToScrollDirection(current,lastMessageY,"messages");
+    lastMessageY=current;
+    updateScrollBottomButton();
+  },{passive:true});
+}
+
+// Mobile Safari can move the page without producing a useful scroll delta
+// soon enough, so also watch the finger direction.
+document.addEventListener("touchstart",e=>{
+  lastTouchY=e.touches?.[0]?.clientY ?? null;
+},{passive:true});
+
+document.addEventListener("touchmove",e=>{
+  if(lastTouchY===null)return;
+  const y=e.touches?.[0]?.clientY;
+  if(typeof y!=="number")return;
+  const fingerDelta=y-lastTouchY;
+  if(Math.abs(fingerDelta)>5){
+    // Finger moving up means content is moving down / user is scrolling down.
+    if(fingerDelta<0 && (documentScrollTop()>20 || (messagesEl?.scrollTop||0)>8)){
+      setChromeHidden(true);
+    }else if(fingerDelta>0){
+      showChromeTemporarily();
+    }
+    lastTouchY=y;
+  }
+},{passive:true});
+
+document.addEventListener("touchend",()=>{lastTouchY=null},{passive:true});
 
 function renderMessages(){
   const c=activeCharacter(),ch=activeChat();
@@ -1248,10 +1463,24 @@ $("importInput").addEventListener("change",async e=>{
       ch.updatedAt=now();saveVault();renderAll();alert("Text transcript archived in the active chat. Structured transcript parsing is coming next.");
     }else{
       const parsed=JSON.parse(raw);
-      if((["0.3","0.4","0.7"].includes(parsed?.version))&&Array.isArray(parsed.characters)){vault=parsed;normalizeVaultV07()}
-      else if(parsed?.character||parsed?.messages){vault=migrateLegacy(parsed)}
+      if(parsed?.format==="noctis-persona" && parsed?.persona){
+        const p=applyPersonaImport(parsed.persona);
+        renderAll();
+        alert(`Persona imported into slot ${p.slot}: ${p.name||`Persona ${p.slot}`}`);
+      }
+      else if(parsed?.persona && typeof parsed.persona==="object" && !Array.isArray(parsed.characters)){
+        const p=applyPersonaImport(parsed.persona);
+        renderAll();
+        alert(`Persona imported into slot ${p.slot}: ${p.name||`Persona ${p.slot}`}`);
+      }
+      else if(parsed?.name && (parsed?.appearance!==undefined || parsed?.personality!==undefined || parsed?.canon!==undefined) && !Array.isArray(parsed.characters)){
+        const p=applyPersonaImport(parsed);
+        renderAll();
+        alert(`Persona imported into slot ${p.slot}: ${p.name||`Persona ${p.slot}`}`);
+      }
+      else if((["0.3","0.4","0.7"].includes(parsed?.version))&&Array.isArray(parsed.characters)){vault=parsed;normalizeVaultV07();saveVault();renderAll();alert("Vault import complete.")}
+      else if(parsed?.character||parsed?.messages){vault=migrateLegacy(parsed);saveVault();renderAll();alert("Legacy import complete.")}
       else throw new Error("Unknown Noctis format");
-      saveVault();renderAll();alert("Import complete.");
     }
   }catch(err){alert(`That file could not be imported: ${err.message}`)}
   e.target.value="";

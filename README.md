@@ -1,4 +1,4 @@
-# Noctis Mourning Vale — v0.7.0
+# Noctis Mourning Vale — v0.7.4
 
 A browser-based personal character/RP vault.
 
@@ -284,3 +284,37 @@ Commands render as engine chips and are not treated as protagonist dialogue.
 - Floating scroll-to-bottom button.
 - Existing OpenRouter API-key storage key is unchanged.
 - Existing vaults migrate in place.
+
+
+## v0.7.1 — Mobile scrolling repair
+
+- The top Noctis header now collapses out of the page layout when scrolling down instead of only being visually translated.
+- Scrolling upward reveals the header; on Chat it auto-hides again after a short pause.
+- Added touch-direction handling specifically for iPhone/iPad Safari.
+- The ↓ latest-message button is now fixed to the viewport rather than trapped inside the message scroller.
+- The button stays available while a chat has meaningful transcript content; it dims when you are already at the latest message.
+- Tapping ↓ scrolls both the transcript and the page/composer to the true bottom.
+- Existing API-key storage, personas, commands, memory, characters, and chats are unchanged.
+
+
+## v0.7.2 — Device Sync / Transfer
+- Adds a **Sync** button to move the complete vault between devices.
+- **Share Current Vault** uses the iOS/iPadOS Share Sheet when supported, making AirDrop or Save to Files/iCloud Drive easy.
+- **Import Vault Here** restores that transfer file on another device.
+- Normal Noctis backup JSON files are accepted too.
+- Characters, chats, personas, memories, lore, milestones, and timeline state transfer together.
+- API keys remain local and are never included in the transfer file.
+- This is safe manual transfer rather than invisible cloud syncing, preventing one device from silently overwriting newer data on another.
+
+
+## v0.7.3 — Persona import/export
+- Adds **Import Persona** and **Export Active Persona** buttons to the Persona tab.
+- Persona imports fill the currently selected persona slot without touching characters, chats, memories, lore, settings, or the API key.
+- Standalone persona files use the `.noctis-persona.json` format.
+
+
+## v0.7.4 — Import routing fix
+- The main header **Import** button now recognizes standalone persona files automatically.
+- The Persona tab's **Import Persona** button still works too.
+- Wrapped `.noctis-persona.json`, `{ persona: ... }`, and direct persona JSON objects are accepted.
+- Persona imports fill the currently active persona slot only and do not alter characters, chats, memories, settings, or the API key.

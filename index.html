@@ -5,15 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
-  <link rel="stylesheet" href="styles.css?v=0.7.0" />
+  <link rel="stylesheet" href="styles.css?v=0.7.4" />
 </head>
 <body>
-  <header class="topbar">
+  <header id="topbar" class="topbar">
     <div>
       <div class="eyebrow">NOCTIS MOURNING VALE</div>
       <h1>Character Vault</h1>
     </div>
     <div class="top-actions">
+      <button id="syncBtn" class="ghost">Sync</button>
       <button id="exportBtn" class="ghost">Backup</button>
       <label class="ghost file-label">Import<input id="importInput" type="file" accept="application/json,.txt" /></label>
     </div>
@@ -73,6 +74,12 @@
         </div>
 
         <div id="personaSlotRow" class="persona-slot-row" aria-label="Persona slots"></div>
+        <div class="persona-file-actions">
+          <button id="importPersonaBtn" class="ghost" type="button">Import Persona</button>
+          <button id="exportPersonaBtn" class="ghost" type="button">Export Active Persona</button>
+          <input id="personaImportInput" type="file" accept=".json,.noctis-persona.json,application/json" hidden />
+        </div>
+
 
         <label>Name<input id="personaName" placeholder="Amanda" /></label>
         <div class="field-grid">
@@ -319,6 +326,29 @@
     </div>
   </template>
 
-  <script src="app.js?v=0.7.0"></script>
+  <script src="app.js?v=0.7.4"></script>
+
+  <input id="syncImportInput" type="file" accept=".json,.noctis,application/json" hidden />
+
+  <div id="syncModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+    <div class="modal-card sync-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">DEVICE TRANSFER</div>
+          <h2 id="syncTitle">Sync Noctis</h2>
+        </div>
+        <button id="syncCloseBtn" class="ghost small" type="button">Close</button>
+      </div>
+      <p class="hint">Each browser keeps its own local vault. Use this to move the complete Noctis vault between your iPhone, iPad, or another device.</p>
+      <div class="sync-actions">
+        <button id="shareSyncBtn" class="send" type="button">Share Current Vault</button>
+        <button id="importSyncBtn" class="ghost" type="button">Import Vault Here</button>
+      </div>
+      <div class="sync-note"><strong>iPhone/iPad:</strong> Share Current Vault → AirDrop or Save to Files/iCloud Drive → open Noctis on the other device → Import Vault Here.</div>
+      <div id="syncStatus" class="test-result"></div>
+      <p class="hint tiny">Your OpenRouter API key is deliberately excluded. Enter it separately on each device.</p>
+    </div>
+  </div>
+
 </body>
 </html>
