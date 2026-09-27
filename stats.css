@@ -1,0 +1,18 @@
+/* Noctis v0.9.0 — Story Stats */
+.story-counter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 22px}
+.story-counter{border:1px solid var(--line);border-radius:16px;padding:12px;background:rgba(255,255,255,.025)}
+.counter-label{font-size:11px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+.counter-row{display:grid;grid-template-columns:34px 1fr 34px;align-items:center;gap:8px}
+.counter-row strong{text-align:center;font-size:24px}
+.counter-row button{min-width:34px;padding:6px}
+.stats-section-head{margin-top:26px}
+.scene-cast-list{display:grid;gap:12px}
+.scene-person{border:1px solid var(--line);border-radius:18px;padding:14px;background:rgba(255,255,255,.025)}
+.scene-person-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.beat-log{display:grid;gap:8px}
+.beat-item{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:rgba(255,255,255,.02)}
+.beat-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.beat-main span{font-size:13px;line-height:1.35}
+.beat-main small{font-size:10px;color:var(--muted)}
+.message-body strong{font-weight:750}
+@media(max-width:680px){.story-counter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.story-counter{padding:10px}}

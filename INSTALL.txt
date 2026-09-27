@@ -1,21 +1,55 @@
-NOCTIS v0.8.1 PHONE CONTINUITY FIX
+NOCTIS v0.9.0 — STORY STATS + RP FORMATTING
 
-Before updating, make a Noctis Backup.
+Before updating:
+1. Make a Noctis Backup.
 
 Upload/replace:
-1. index.html
-2. phone-fix.js
-3. phone-fix.css
+- index.html
+- stats.js
+- stats.css
 
-KEEP your existing:
+KEEP all existing files:
 - app.js
 - styles.css
 - phone.js
 - phone.css
+- phone-fix.js
+- phone-fix.css
 
-After GitHub Pages updates, fully close and reopen Noctis on iPhone/iPad.
-The build badge should read v0.8.1.
+After GitHub Pages updates:
+- Fully close/reopen Noctis on iPhone/iPad.
+- Build badge should read v0.9.0.
+- A new Stats tab should appear between Chat and Memory.
 
-What this fixes:
-- Main RP gets recent Phone messages as a high-priority system continuity block.
-- Phone tab gains a Contact Settings button that jumps directly to the picture/name/status/texting-style editor.
+WHAT'S NEW
+
+STATS TAB
+- Timeline-specific counters:
+  Sex
+  Kisses
+  Dates
+  Fights
+  Transformations
+  Major injuries
+- +/- buttons let you correct counts manually.
+- Current-scene participant cards:
+  Name
+  Species
+  Health status
+  Clothing worn
+  Scene status / position
+  Notes
+- Chronological Story Beat Log.
+- “Update From RP” reads only transcript messages not previously scanned,
+  updates current-scene participants, and increments newly occurring beats.
+- The scan is manual so it does NOT spend an extra model request on every RP turn.
+
+FORMATTING
+- Main RP dialogue: “curly quotation marks”
+- Main RP actions/narration: **double-asterisk action formatting**
+- Noctis displays **action text** in bold while preserving the stored markers.
+- Phone messages remain plain text.
+
+DATA SAFETY
+- Stats live inside each timeline/chat, so separate RP worlds/timelines stay isolated.
+- Stats are included automatically in normal Noctis vault backups.
