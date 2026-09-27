@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
   <link rel="stylesheet" href="styles.css?v=0.7.5" />
-  <link rel="stylesheet" href="phone.css?v=0.11.0" />
+  <link rel="stylesheet" href="phone.css?v=0.11.1" />
   <link rel="stylesheet" href="phone-fix.css?v=0.8.1" />
-  <link rel="stylesheet" href="stats.css?v=0.11.0" />
-  <link rel="stylesheet" href="social.css?v=0.11.0" />
+  <link rel="stylesheet" href="stats.css?v=0.11.1" />
+  <link rel="stylesheet" href="social.css?v=0.11.1" />
 </head>
 <body>
   <header id="topbar" class="topbar">
@@ -179,10 +179,10 @@
   <template id="entryTemplate"><div class="entry"><input class="entry-title" placeholder="Title" /><textarea class="entry-body" rows="4" placeholder="Details"></textarea><button class="remove danger small" type="button">Remove</button></div></template>
 
   <script src="app.js?v=0.7.5"></script>
-  <script src="phone.js?v=0.11.0"></script>
+  <script src="phone.js?v=0.11.1"></script>
   <script src="phone-fix.js?v=0.8.1"></script>
-  <script src="stats.js?v=0.11.0"></script>
-  <script src="social.js?v=0.11.0"></script>
+  <script src="stats.js?v=0.11.1"></script>
+  <script src="social.js?v=0.11.1"></script>
 
   <input id="syncImportInput" type="file" accept=".json,.noctis,application/json" hidden />
   <div id="syncModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="syncTitle"><div class="modal-card sync-card"><div class="modal-head"><div><div class="eyebrow">DEVICE TRANSFER</div><h2 id="syncTitle">Sync Noctis</h2></div><button id="syncCloseBtn" class="ghost small" type="button">Close</button></div><p class="hint">Each browser keeps its own local vault. Use this to move the complete Noctis vault between your iPhone, iPad, or another device.</p><div class="sync-actions"><button id="shareSyncBtn" class="send" type="button">Share Current Vault</button><button id="importSyncBtn" class="ghost" type="button">Import Vault Here</button></div><div class="sync-note"><strong>iPhone/iPad:</strong> Share Current Vault → AirDrop or Save to Files/iCloud Drive → open Noctis on the other device → Import Vault Here.</div><div id="syncStatus" class="test-result"></div><p class="hint tiny">Your OpenRouter API key is deliberately excluded.</p></div></div>

@@ -1,31 +1,23 @@
-NOCTIS v0.11.0 — SOCIAL + AMBIENT TEXTS
+NOCTIS v0.11.1 — HARD KNOT BLOCK
 
-This includes the v0.10.1 fix that revoked the house's phone privileges.
+The prompt alone was not strong enough. This version adds THREE layers:
 
-NEW: SOCIAL TAB
-- Twitter-style status feed inside each RP timeline.
-- Protagonist can post short status updates.
-- Phone contacts who have "Follows protagonist on Social" enabled can see the post.
-- Contacts may instantly react or comment in their own established voice.
-- Each contact card now has a Social follow toggle.
-- Social posts/reactions travel with the timeline backup.
+1. High-priority final system rule
+   - It is appended AFTER recent transcript/context so old wording cannot override it.
+   - Sexual uses of knot/knotting/tie/bulbus glandis are explicitly non-canon.
 
-NEW: RANDOM / AMBIENT TEXTS
-- Phone > Contacts now has "Ambient incoming texts".
-- It is OFF by default because every spontaneous text uses an API/model call.
-- Frequency choices:
-  Rare: roughly every 1–3 hours
-  Normal: roughly every 30–90 minutes
-  Frequent: roughly every 15–45 minutes
-- Messages only arrive while Noctis is open.
-- Maximum 8 ambient texts per day per active timeline.
-- Sleeping, Driving, and Do Not Disturb contacts are skipped.
-- Contacts can react naturally to recent RP or Social posts.
+2. Runtime output sanitizer
+   - If the model STILL produces "knot" as sexual anatomy, Noctis rewrites it
+     before the reply is saved/displayed.
+   - Ordinary nonsexual uses of "knot" (rope knot, stomach in knots, tying a knot)
+     are left alone as much as possible.
 
-NEW: NOTIFICATIONS
-- Phone tab shows an unread count/dot.
-- Individual contact pills show unread counts.
-- Opening a contact marks that thread read.
+3. Existing-message cleanup
+   - Clearly sexual "knot" wording in assistant posts is cleaned when messages render.
+   - This helps stop the model from seeing/reinforcing its own bad terminology later.
+
+Doggy style and primal/animalistic energy remain allowed. This ONLY targets canine
+reproductive anatomy/mechanics.
 
 INSTALL
 1. Make a Noctis Backup.
@@ -35,9 +27,8 @@ INSTALL
    - phone.css
    - stats.js
    - stats.css
-3. ADD:
    - social.js
    - social.css
-4. Keep phone-fix.js, phone-fix.css, app.js, styles.css and all other existing files.
-5. Fully close/reopen Noctis after GitHub Pages updates.
-6. Build badge should read v0.11.0.
+3. Keep app.js, styles.css, phone-fix.js, phone-fix.css, and all other files.
+4. Fully close/reopen Noctis after GitHub Pages updates.
+5. Build badge should read v0.11.1.

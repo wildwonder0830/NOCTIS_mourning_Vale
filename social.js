@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.11.0 — Social feed */
 (() => {
-  const BUILD="0.11.0";
+  const BUILD="0.11.1";
   const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
   const fmt=iso=>{try{return new Date(iso||Date.now()).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}catch{return ""}};
 

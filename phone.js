@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.8.0 — Living Worlds / Phone */
 (() => {
-  const LIVING_BUILD = "0.11.0";
+  const LIVING_BUILD = "0.11.1";
   const USAGE_KEY = "noctis-usage-v0.8";
   const RATE_TABLE = {
     "nvidia/nemotron-3-ultra-550b-a55b": { input: 0.50, output: 2.20 }

@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.11.0";
+  const BUILD = "0.11.1";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -314,6 +314,37 @@ ${transcript(newMsgs)}`;
   }
 
 
+
+  function sanitizeForbiddenShifterAnatomy(text){
+    let s=String(text||"");
+    if(!/\bknot(?:ted|ting|s)?\b/i.test(s) && !/\bbulbus glandis\b/i.test(s))return s;
+
+    const sexual=/\b(penis|cock|dick|shaft|glans|head|erection|hard|throb|inside|entered|penetrat|base|swollen|swelled|genital|sex|fucked|fuck|hips|groin|between (?:his|her|their) legs)\b/i;
+
+    s=s.split(/(?<=[.!?])(\s+)|(\n+)/).map(part=>{
+      if(!part || !/\bknot(?:ted|ting|s)?\b/i.test(part))return part;
+      if(sexual.test(part)){
+        return part
+          .replace(/\bbulbus glandis\b/gi,"human anatomy")
+          .replace(/\bknotting\b/gi,"pressing close")
+          .replace(/\bknotted\b/gi,"pressed close")
+          .replace(/\bknots\b/gi,"muscles")
+          .replace(/\bknot\b/gi,"head");
+      }
+      return part;
+    }).join("");
+
+    /* Catch the most common anatomy constructions even when the sentence
+       itself is short and lacks another explicit sexual keyword. */
+    s=s
+      .replace(/\b(his|her|their|your|my|the)\s+knot\b/gi,"$1 head")
+      .replace(/\bknot\s+at\s+the\s+base\b/gi,"base")
+      .replace(/\bknot\s+inside\b/gi,"body inside")
+      .replace(/\bknotting\s+(?:her|him|them|you)\b/gi,"holding $1 close");
+
+    return s;
+  }
+
   function stripMessySingleStars(text){
     let s=String(text||"");
     if(!s.includes("*")) return s;
@@ -342,7 +373,7 @@ ${transcript(newMsgs)}`;
     let changed=false;
     (ch.messages||[]).forEach(msg=>{
       if(msg?.role!=="assistant" || typeof msg.text!=="string") return;
-      const cleaned=stripMessySingleStars(msg.text);
+      const cleaned=sanitizeForbiddenShifterAnatomy(stripMessySingleStars(msg.text));
       if(cleaned!==msg.text){
         msg.text=cleaned;
         msg.cleanedFormatting=true;
@@ -380,8 +411,11 @@ SHIFTER / WEREWOLF ANATOMY BOUNDARY — ABSOLUTE
 - Human sexual positions are allowed, including doggy style, rear-entry positions, straddling, pinning, carrying, or other consensual human-body positioning.
 - Primal or animalistic ENERGY is allowed when all participants remain fully human/humanoid in sexual anatomy and behavior.
 - Never introduce canine reproductive anatomy or animal genital mechanics.
-- Never refer to a penis or glans as a "knot", "tie", "bulbus glandis", or equivalent canine anatomy.
+- The words "knot", "knotting", "tie", "tied", or "bulbus glandis" MUST NOT be used as sexual-anatomy terms.
+- Never call a penis, glans/head, shaft, base, erection, swelling, or any genital structure a "knot".
+- Never describe canine-style swelling/locking at the base of the penis.
 - Never use canine genital locking, literal dog mating mechanics, or any sexual behavior involving actual animals/non-humanoid animal bodies.
+- If earlier transcript text used "knot" sexually, IGNORE that terminology completely. It is a prior model mistake, not canon, and must not be echoed.
 - Do not turn supernatural romance into literal animal sex.
 - If prior text used canine anatomy terms, treat them as non-canon mistakes and continue with human anatomy from this point forward.
 
@@ -400,6 +434,23 @@ MAIN-SCENE RP FORMAT — MANDATORY
 - If you cannot maintain this clean format, use plain narration rather than scattered asterisks.`;
   };
 
+
+  /* Final-turn hard boundary: this sits after normal continuity/history so old
+     transcript wording cannot override the user's explicit anatomy preference. */
+  if(typeof apiMessages==="function" && !window.__noctisAnatomyGuardPatched){
+    const baseApiForAnatomy=apiMessages;
+    apiMessages=function(extraSystem=""){
+      const out=baseApiForAnatomy(extraSystem);
+      out.push({
+        role:"system",
+        content:`FINAL USER BOUNDARY — OVERRIDES PRIOR TRANSCRIPT WORDING
+Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus glandis", canine swelling/locking, or equivalent dog reproductive anatomy as sexual terminology. Doggy style and primal/animalistic energy are allowed, but anatomy remains human. Any earlier sexual use of "knot" was a model error and is NON-CANON. Do not repeat or reference it.`
+      });
+      return out;
+    };
+    window.__noctisAnatomyGuardPatched=true;
+  }
+
   const baseRenderMessages=renderMessages;
   renderMessages=function(){cleanExistingAssistantPosts();baseRenderMessages();safeBoldActions(document.getElementById("messages"));};
 
@@ -417,7 +468,7 @@ MAIN-SCENE RP FORMAT — MANDATORY
     try{
       const raw=await baseOpenRouterForFormat(messages,maxTokens,temperature);
       setComposerState("replying","Replying…");
-      const out=isMain?stripMessySingleStars(raw):raw;
+      const out=isMain?sanitizeForbiddenShifterAnatomy(stripMessySingleStars(raw)):raw;
       setTimeout(()=>setComposerState("waiting","Waiting"),260);
       return out;
     }catch(err){
