@@ -22,3 +22,9 @@
 .social-empty{padding:22px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:16px}
 .social-dot{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;padding:0 4px;margin-left:4px;border-radius:999px;background:#b84cff;color:#fff;font-size:9px;font-weight:900}
 @media(max-width:620px){.social-shell{padding:11px}.social-post{padding:10px}.social-post-top{grid-template-columns:38px minmax(0,1fr) auto}.social-avatar,.social-avatar-fallback{width:38px;height:38px}}
+/* v0.12.0 — fuller social feed */
+.social-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.social-head-actions{flex:0 0 auto}
+.social-follower-summary{font-size:11px;color:var(--accent2);margin-top:4px}
+.social-post-actions{display:flex;gap:6px;margin:6px 0}
+.social-like-btn{font-size:11px;padding:5px 9px}

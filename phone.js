@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.8.0 — Living Worlds / Phone */
 (() => {
-  const LIVING_BUILD = "0.11.1";
+  const LIVING_BUILD = "0.12.0";
   const USAGE_KEY = "noctis-usage-v0.8";
   const RATE_TABLE = {
     "nvidia/nemotron-3-ultra-550b-a55b": { input: 0.50, output: 2.20 }
@@ -35,6 +35,7 @@
                 <div id="phoneHeaderName" class="phone-header-name">Contact</div>
                 <div id="phoneHeaderStatus" class="phone-header-status">available</div>
                 <button id="phoneDirectoryBtn" class="ghost small phone-directory-btn" type="button">Contacts</button>
+                <button id="phoneGroupsBtn" class="ghost small phone-directory-btn" type="button">Groups</button>
               </div>
             </div>
             <div id="phoneDirectory" class="phone-directory hidden">
@@ -45,7 +46,10 @@
               <div class="phone-directory-actions">
                 <button id="addStoryContactBtn" class="small" type="button">+ Contact</button>
                 <button id="syncStoryContactsBtn" class="ghost small" type="button">Sync From Story</button>
+                <button id="createBestieTrioBtn" class="ghost small" type="button">Create Bestie Trio</button>
+                <button id="newGroupChatBtn" class="ghost small" type="button">+ Group Chat</button>
               </div>
+              <div id="phoneGroupList" class="phone-group-list"></div>
               <div class="ambient-text-controls">
                 <label class="toggle-row"><input id="ambientTextsEnabled" type="checkbox" /><span>Ambient incoming texts <small>(uses the selected model)</small></span></label>
                 <label>Frequency
@@ -155,6 +159,14 @@
         if(!ch.phoneThreads || typeof ch.phoneThreads !== "object" || Array.isArray(ch.phoneThreads)) ch.phoneThreads = {};
         c.phoneContacts.forEach(p => { if(!Array.isArray(ch.phoneThreads[p.id])) ch.phoneThreads[p.id] = []; });
         if(typeof ch.phoneAwayNote !== "string") ch.phoneAwayNote = "";
+        if(!Array.isArray(ch.phoneGroups)) ch.phoneGroups=[];
+        if(!ch.groupThreads || typeof ch.groupThreads!=="object" || Array.isArray(ch.groupThreads)) ch.groupThreads={};
+        ch.phoneGroups.forEach(g=>{
+          g.id=g.id||uid();
+          g.name=typeof g.name==="string"&&g.name?g.name:"Group Chat";
+          if(!Array.isArray(g.memberIds))g.memberIds=[];
+          if(!Array.isArray(ch.groupThreads[g.id]))ch.groupThreads[g.id]=[];
+        });
         if(!ch.phoneUnread || typeof ch.phoneUnread!=="object" || Array.isArray(ch.phoneUnread)) ch.phoneUnread={};
         c.phoneContacts.forEach(p=>{if(!Number.isFinite(Number(ch.phoneUnread[p.id])))ch.phoneUnread[p.id]=0});
         if(!Number.isFinite(Number(ch.nextAmbientTextAt))) ch.nextAmbientTextAt=0;
@@ -206,8 +218,151 @@
     saveVault();return p;
   }
 
+
+  function groupThread(ch=activeChat(),g=null){
+    if(!g)return [];
+    ch.groupThreads=ch.groupThreads||{};
+    if(!Array.isArray(ch.groupThreads[g.id]))ch.groupThreads[g.id]=[];
+    return ch.groupThreads[g.id];
+  }
+
+  function renderPhoneGroups(){
+    const host=$("phoneGroupList");if(!host)return;
+    const c=activeCharacter(),ch=activeChat();host.innerHTML="";
+    if(!ch.phoneGroups.length){
+      host.innerHTML='<div class="hint mini-hint">No group chats yet.</div>';
+      return;
+    }
+    ch.phoneGroups.forEach(g=>{
+      const names=(g.memberIds||[]).map(id=>c.phoneContacts.find(p=>p.id===id)?.displayName||c.phoneContacts.find(p=>p.id===id)?.name).filter(Boolean);
+      const row=document.createElement("div");row.className="phone-group-row";
+      row.innerHTML=`<button type="button" class="phone-group-open"><strong>${esc(g.name)}</strong><span>${esc(names.join(", "))}</span></button><button type="button" class="ghost small phone-group-edit">Edit</button>`;
+      row.querySelector(".phone-group-open").addEventListener("click",()=>openGroupChat(g.id));
+      row.querySelector(".phone-group-edit").addEventListener("click",()=>editGroupChat(g.id));
+      host.appendChild(row);
+    });
+  }
+
+  function createGroupChat(){
+    const c=activeCharacter(),ch=activeChat();
+    const name=prompt("Group chat name:","The Coven");
+    if(name===null||!name.trim())return;
+    const available=c.phoneContacts||[];
+    if(!available.length){alert("Add contacts first.");return}
+    const choices=available.map((p,i)=>`${i+1}. ${p.displayName||p.name}${p.relationship?` — ${p.relationship}`:""}`).join("\n");
+    const raw=prompt(`Enter the numbers of the contacts to add, separated by commas:\n\n${choices}`,"1,2,3");
+    if(raw===null)return;
+    const ids=[...new Set(raw.split(",").map(x=>Number(x.trim())-1).filter(i=>i>=0&&i<available.length).map(i=>available[i].id))];
+    if(ids.length<2){alert("A group chat needs at least two contacts.");return}
+    const g={id:uid(),name:name.trim(),memberIds:ids,createdAt:now(),updatedAt:now()};
+    ch.phoneGroups.push(g);ch.groupThreads[g.id]=[];saveVault();renderPhoneGroups();
+  }
+
+  function editGroupChat(groupId){
+    const c=activeCharacter(),ch=activeChat(),g=ch.phoneGroups.find(x=>x.id===groupId);if(!g)return;
+    const name=prompt("Group chat name:",g.name);if(name!==null&&name.trim())g.name=name.trim();
+    const available=c.phoneContacts||[];
+    const choices=available.map((p,i)=>`${i+1}. ${p.displayName||p.name}`).join("\n");
+    const current=available.map((p,i)=>g.memberIds.includes(p.id)?i+1:null).filter(Boolean).join(",");
+    const raw=prompt(`Members (comma-separated numbers):\n\n${choices}`,current);
+    if(raw!==null){
+      const ids=[...new Set(raw.split(",").map(x=>Number(x.trim())-1).filter(i=>i>=0&&i<available.length).map(i=>available[i].id))];
+      if(ids.length>=2)g.memberIds=ids;
+    }
+    g.updatedAt=now();saveVault();renderPhoneGroups();
+  }
+
+  function createBestieTrio(){
+    const c=activeCharacter(),ch=activeChat();
+    const presets=[
+      {name:"Mara",relationship:"Best friend · blunt ride-or-die",style:"Texts fast, direct, protective, perceptive, and calls out nonsense immediately. Uses dry humor and occasional swearing. She knows the protagonist deeply and does not automatically side with anyone."},
+      {name:"Vivian",relationship:"Best friend · chaotic instigator",style:"Playful, funny, meme-heavy, dramatic in a fun way, loves gossip, thirst commentary, and ridiculous encouragement. Still loyal when things get serious."},
+      {name:"Elena",relationship:"Best friend · calm observer",style:"Warm, grounded, emotionally perceptive, asks the uncomfortable useful question. Less chaotic, more thoughtful, but not boring."}
+    ];
+    const ids=[];
+    presets.forEach(p=>{
+      let existing=c.phoneContacts.find(x=>contactNameKey(x.name)===contactNameKey(p.name));
+      if(!existing){
+        existing=addContactRecord(p.name,p.relationship);
+        existing.textingStyle=p.style;
+        existing.followsSocial=true;
+      }else{
+        if(!existing.relationship)existing.relationship=p.relationship;
+        if(!existing.textingStyle)existing.textingStyle=p.style;
+        existing.followsSocial=true;
+      }
+      ids.push(existing.id);
+    });
+    let g=ch.phoneGroups.find(x=>x.name==="The Coven");
+    if(!g){
+      g={id:uid(),name:"The Coven",memberIds:ids,createdAt:now(),updatedAt:now()};
+      ch.phoneGroups.push(g);ch.groupThreads[g.id]=[];
+    }else g.memberIds=ids;
+    saveVault();renderPhoneContacts();renderPhoneDirectory();renderPhoneGroups();renderPhone();
+    const status=$("phoneDirectoryStatus");if(status)status.textContent="Bestie trio created: Mara, Vivian, Elena + group chat “The Coven”. Everything is editable.";
+  }
+
+  function openGroupChat(groupId){
+    const c=activeCharacter(),ch=activeChat(),g=ch.phoneGroups.find(x=>x.id===groupId);if(!g)return;
+    const names=(g.memberIds||[]).map(id=>c.phoneContacts.find(p=>p.id===id)?.displayName||c.phoneContacts.find(p=>p.id===id)?.name).filter(Boolean);
+    const thread=groupThread(ch,g);
+    const host=$("phoneMessages"),name=$("phoneHeaderName"),status=$("phoneHeaderStatus"),avatar=$("phoneHeaderAvatar");
+    if(name)name.textContent=g.name;if(status)status.textContent=names.join(" · ");if(avatar)avatar.innerHTML='<div class="phone-header-avatar-img avatar-fallback">G</div>';
+    if(host){
+      host.innerHTML="";
+      if(!thread.length)host.innerHTML=`<div class="phone-empty">No messages in ${esc(g.name)} yet.</div>`;
+      thread.forEach(msg=>{
+        const row=document.createElement("div");row.className=`phone-message-row ${msg.role==="user"?"mine":"theirs"}`;
+        const bubble=document.createElement("div");bubble.className="phone-bubble";
+        bubble.textContent=(msg.role==="assistant"&&msg.author?`${msg.author}: `:"")+msg.text;
+        row.appendChild(bubble);host.appendChild(row);
+      });
+      host.scrollTop=host.scrollHeight;
+    }
+    const form=$("phoneForm");if(form){
+      form.dataset.groupId=g.id;
+      const input=$("phoneInput");if(input)input.placeholder=`Message ${g.name}…`;
+    }
+    $("phoneDirectory")?.classList.add("hidden");
+  }
+
+  async function sendGroupMessage(groupId,text){
+    const c=activeCharacter(),ch=activeChat(),g=ch.phoneGroups.find(x=>x.id===groupId);if(!g)return;
+    const clean=String(text||"").trim();if(!clean)return;
+    const thread=groupThread(ch,g);
+    thread.push({id:uid(),role:"user",text:clean,createdAt:now()});saveVault();openGroupChat(g.id);
+    const members=(g.memberIds||[]).map(id=>c.phoneContacts.find(p=>p.id===id)).filter(Boolean);
+    const roster=members.map(p=>`${p.name} | ${p.relationship||"friend"} | ${p.textingStyle||"established voice"}`).join("\n");
+    const recent=thread.slice(-12).map(m=>`${m.role==="user"?"PROTAGONIST":(m.author||"FRIEND")}: ${m.text}`).join("\n");
+    const mainRecent=getConversationMessages(ch).slice(-6).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n");
+    try{
+      const raw=await openRouterRequest([{role:"system",content:compileSystemPrompt()+`\n\nGROUP CHAT MODE
+Group: ${g.name}
+Members:
+${roster}
+
+Write 1-3 natural replies from the listed members. Not everyone must answer.
+Return ONLY lines in this format:
+Exact Name|message text
+
+No narration. No labels beyond the exact name before |. Keep voices distinct. Do not control the protagonist.
+
+RECENT GROUP CHAT:
+${recent||"(none)"}
+
+RECENT MAIN STORY:
+${mainRecent||"(none)"}`}],420,0.85);
+      String(raw||"").split(/\r?\n/).forEach(line=>{
+        const parts=line.split("|");if(parts.length<2)return;
+        const author=parts.shift().trim(),msg=parts.join("|").trim();
+        if(members.some(p=>p.name===author)&&msg)thread.push({id:uid(),role:"assistant",author,text:msg,createdAt:now()});
+      });
+      saveVault();openGroupChat(g.id);
+    }catch(err){alert(`Group reply failed: ${err?.message||String(err)}`)}
+  }
+
   function renderPhoneDirectory(){
-    const host=$("phoneDirectoryList");if(!host)return;
+    const host=$("phoneDirectoryList");if(!host)return;renderPhoneGroups();
     ensureLivingWorldData();const c=activeCharacter();host.innerHTML="";
     c.phoneContacts.forEach(p=>{
       const row=document.createElement("div");row.className="phone-directory-row";
@@ -422,7 +577,7 @@ ${social||"(none)"}`;
       b.type="button";b.dataset.contactId=p.id;
       b.className=`phone-contact-pill${p.id===c.activePhoneContactId?" active":""}`;
       b.innerHTML=`${avatarMarkup(p,"phone-rail-avatar")}<span>${esc(p.displayName||p.name)}</span>`;
-      b.addEventListener("click",()=>{c.activePhoneContactId=p.id;markPhoneRead(p.id);saveVault();renderPhone()});
+      b.addEventListener("click",()=>{c.activePhoneContactId=p.id;const f=$("phoneForm");if(f)delete f.dataset.groupId;const input=$("phoneInput");if(input)input.placeholder="Message…";markPhoneRead(p.id);saveVault();renderPhone()});
       rail.appendChild(b);
     });
     updatePhoneUnreadUI();
@@ -473,6 +628,9 @@ ${social||"(none)"}`;
     $("closePhoneDirectoryBtn")?.addEventListener("click",()=>{$("phoneDirectory")?.classList.add("hidden")});
     $("addStoryContactBtn")?.addEventListener("click",addStoryContact);
     $("syncStoryContactsBtn")?.addEventListener("click",syncStoryContacts);
+    $("createBestieTrioBtn")?.addEventListener("click",createBestieTrio);
+    $("newGroupChatBtn")?.addEventListener("click",createGroupChat);
+    $("phoneGroupsBtn")?.addEventListener("click",()=>{$("phoneDirectory")?.classList.remove("hidden");renderPhoneGroups()});
     const ambientToggle=$("ambientTextsEnabled");
     if(ambientToggle){
       ambientToggle.checked=!!settings.ambientTextsEnabled;
@@ -484,7 +642,7 @@ ${social||"(none)"}`;
       ambientFreq.addEventListener("change",e=>{settings.ambientTextFrequency=e.target.value||"normal";const ch=activeChat();ch.nextAmbientTextAt=Date.now()+ambientDelayMs(settings.ambientTextFrequency);saveSettings();saveVault()});
     }
     const add=$("addPhoneContactBtn");if(add)add.addEventListener("click",()=>{const c=activeCharacter(),p=defaultContact(c,c.phoneContacts.length);c.phoneContacts.push(p);c.activePhoneContactId=p.id;c.chats.forEach(ch=>{ch.phoneThreads=ch.phoneThreads||{};ch.phoneThreads[p.id]=[]});saveVault();renderPhoneContacts();renderPhone()});
-    const form=$("phoneForm");if(form)form.addEventListener("submit",async e=>{e.preventDefault();const input=$("phoneInput"),text=input.value.trim();if(!text)return;input.value="";await sendPhoneMessage(text)});
+    const form=$("phoneForm");if(form)form.addEventListener("submit",async e=>{e.preventDefault();const input=$("phoneInput"),text=input.value.trim();if(!text)return;input.value="";const gid=form.dataset.groupId||"";if(gid)await sendGroupMessage(gid,text);else await sendPhoneMessage(text)});
     const away=$("phoneAwayNote");if(away)away.addEventListener("input",e=>{activeChat().phoneAwayNote=e.target.value;activeChat().updatedAt=now();saveVault()});
     const clear=$("clearPhoneThreadBtn");if(clear)clear.addEventListener("click",()=>{const p=contact();if(!p)return;if(!confirm(`Clear the phone thread with ${p.displayName||p.name}?`))return;activeChat().phoneThreads[p.id]=[];saveVault();renderPhoneMessages();renderMemoryInspector()});
     const budget=$("monthlyBudgetUsd");if(budget)budget.addEventListener("input",e=>{const v=e.target.value.trim();settings.monthlyBudgetUsd=v===""?"":Math.max(0,Number(v)||0);saveSettings();renderUsagePanel()});

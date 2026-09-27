@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.11.1";
+  const BUILD = "0.12.0";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -81,6 +81,27 @@
           <div id="beatLog" class="beat-log"></div>
         </div>`;
       main.insertBefore(section,memoryView);
+    }
+
+    const settingsPanel=document.querySelector('[data-view="settings"] .panel');
+    if(settingsPanel && !document.getElementById("rpPacingMode")){
+      const box=document.createElement("div");
+      box.className="memory-compact-card";
+      box.innerHTML=`
+        <h2 class="subhead">RP Pacing</h2>
+        <p class="hint">Controls how aggressively characters re-initiate sex versus moving the story forward.</p>
+        <label>Intimacy pacing
+          <select id="rpPacingMode">
+            <option value="story">Story-first — sex happens, then the plot gets room</option>
+            <option value="balanced">Balanced — romantic/sexual, but not an endless loop</option>
+            <option value="highheat">High-heat — more frequent, still respects cooldowns</option>
+          </select>
+        </label>
+        <label class="toggle-row">
+          <input id="sexNeedsUserLead" type="checkbox" />
+          <span>After sex, require the protagonist to clearly re-initiate before another encounter</span>
+        </label>`;
+      settingsPanel.appendChild(box);
     }
   }
 
@@ -403,6 +424,16 @@ ${transcript(newMsgs)}`;
      Phone mode explicitly stays plain text. */
   const baseCompile=compileSystemPrompt;
   compileSystemPrompt=function(){
+    const mode=settings.rpPacingMode||"balanced";
+    const needsLead=settings.sexNeedsUserLead!==false;
+    const pacingRule=mode==="story"
+      ?`PACING MODE: STORY-FIRST. After one completed sexual encounter, do not initiate another for at least 12 assistant turns and until the scene has meaningfully moved forward.`
+      :mode==="highheat"
+      ?`PACING MODE: HIGH-HEAT. Attraction can stay intense, but after a completed sexual encounter do not re-initiate for at least 4 assistant turns unless the protagonist clearly initiates. Avoid more than two encounters in the same scene.`
+      :`PACING MODE: BALANCED. After a completed sexual encounter, do not re-initiate for at least 8 assistant turns unless the protagonist clearly initiates. One encounter per scene is the normal default; two is an exception, not the baseline.`;
+    const leadRule=needsLead
+      ?`AFTER-SEX LEAD RULE: Once an encounter ends, the CHARACTER must not start another sexual encounter until the protagonist clearly and actively initiates it. Flirting, cuddling, kissing, nudity, bathing, or lying in bed do not count as clear initiation.`
+      :`AFTER-SEX LEAD RULE: The character may re-initiate after the pacing cooldown, but should still prioritize story progression.`;
     return baseCompile()+`
 
 SHIFTER / WEREWOLF ANATOMY BOUNDARY — ABSOLUTE
@@ -418,6 +449,16 @@ SHIFTER / WEREWOLF ANATOMY BOUNDARY — ABSOLUTE
 - If earlier transcript text used "knot" sexually, IGNORE that terminology completely. It is a prior model mistake, not canon, and must not be echoed.
 - Do not turn supernatural romance into literal animal sex.
 - If prior text used canine anatomy terms, treat them as non-canon mistakes and continue with human anatomy from this point forward.
+
+RP PACING — KEEP THE STORY MOVING
+${pacingRule}
+${leadRule}
+- The roleplay is not a continuous sex loop. Sexual scenes are one part of the story, not the entire story.
+- After a completed sexual encounter, naturally transition into aftercare, conversation, humor, sleep, food, work, conflict, mystery, errands, relationship development, or another plot beat.
+- Do not immediately restart sex just because the characters are still attracted to each other.
+- Do not interpret every touch, cuddle, kiss, shower, bed scene, or flirtation as an invitation to begin another sexual encounter.
+- Let ordinary roleplay breathe: talking, teasing, planning, arguing, joking, investigating, traveling, domestic scenes, and plot progression should happen regularly.
+- The protagonist must have room to initiate, react, and steer events. Do not monopolize the scene with repeated sexual escalation.
 
 MAIN-SCENE RP FORMAT — MANDATORY
 - This formatting rule applies to normal RP and Generate My Turn. Phone/text-message mode is exempt.
@@ -544,7 +585,22 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
   });
   if(addedBoundary)saveSettings();
 
+  if(!settings.rpPacingMode)settings.rpPacingMode="balanced";
+  if(settings.sexNeedsUserLead===undefined)settings.sexNeedsUserLead=true;
+  saveSettings();
+
   ensureStats();injectStatsUI();seedSceneCast();injectComposerStatus();cleanExistingAssistantPosts();
+
+  const pacingSel=document.getElementById("rpPacingMode");
+  if(pacingSel){
+    pacingSel.value=settings.rpPacingMode||"balanced";
+    pacingSel.addEventListener("change",e=>{settings.rpPacingMode=e.target.value;saveSettings()});
+  }
+  const leadToggle=document.getElementById("sexNeedsUserLead");
+  if(leadToggle){
+    leadToggle.checked=settings.sexNeedsUserLead!==false;
+    leadToggle.addEventListener("change",e=>{settings.sexNeedsUserLead=!!e.target.checked;saveSettings()});
+  }
 
   document.getElementById("scanSceneStatsBtn")?.addEventListener("click",updateFromRP);
   document.getElementById("addScenePersonBtn")?.addEventListener("click",()=>{

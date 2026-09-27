@@ -50,3 +50,10 @@
 }
 .ambient-text-controls label{margin:0}
 .ambient-text-controls small{color:var(--muted);font-weight:500}
+
+/* v0.12.0 — group chats */
+.phone-group-list{display:grid;gap:6px;margin:8px 0 10px}
+.phone-group-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.015)}
+.phone-group-open{border:0;background:transparent;color:var(--text);text-align:left;min-width:0;padding:0}
+.phone-group-open strong,.phone-group-open span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phone-group-open span{font-size:10px;color:var(--muted);margin-top:2px}

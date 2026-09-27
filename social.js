@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.11.0 — Social feed */
 (() => {
-  const BUILD="0.11.1";
+  const BUILD="0.12.0";
   const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]));
   const fmt=iso=>{try{return new Date(iso||Date.now()).toLocaleString([], {month:"short",day:"numeric",hour:"numeric",minute:"2-digit"})}catch{return ""}};
 
@@ -8,6 +8,9 @@
     (vault.characters||[]).forEach(c=>(c.chats||[]).forEach(ch=>{
       if(!Array.isArray(ch.socialPosts))ch.socialPosts=[];
       if(!Number.isFinite(Number(ch.socialUnread)))ch.socialUnread=0;
+      if(!Number.isFinite(Number(ch.socialFollowerCount)))ch.socialFollowerCount=0;
+      if(!Number.isFinite(Number(ch.nextSocialPostAt)))ch.nextSocialPostAt=0;
+      if(typeof ch.socialSeeded!=="boolean")ch.socialSeeded=false;
     }));
   }
 
@@ -29,7 +32,8 @@
       section.innerHTML=`
         <div class="social-shell">
           <div class="social-head">
-            <div><h2>Social</h2><p class="hint">Status updates visible to story contacts who follow this timeline.</p></div>
+            <div><h2>Social</h2><p class="hint">Status updates visible to story contacts who follow this timeline.</p><div id="socialFollowerSummary" class="social-follower-summary"></div></div>
+            <div class="social-head-actions"><button id="socialRefreshBtn" class="ghost small" type="button">Refresh Feed</button></div>
           </div>
           <form id="socialForm" class="social-composer">
             <textarea id="socialInput" rows="3" maxlength="500" placeholder="What’s happening?"></textarea>
@@ -60,6 +64,90 @@
     return `<div class="${cls} social-avatar-fallback">${esc(letter)}</div>`;
   }
 
+
+  function ensureInitialFollowers(){
+    const c=activeCharacter(),ch=activeChat();
+    if(ch.socialSeeded)return;
+    (c.phoneContacts||[]).forEach(p=>{p.followsSocial=true});
+    ch.socialFollowerCount=Math.max((c.phoneContacts||[]).length,3);
+    ch.socialSeeded=true;
+    saveVault();
+  }
+
+  function followerCount(){
+    const c=activeCharacter(),ch=activeChat();
+    const known=(c.phoneContacts||[]).filter(p=>p.followsSocial!==false).length;
+    return Math.max(Number(ch.socialFollowerCount||0),known);
+  }
+
+  function updateFollowerSummary(){
+    const host=document.getElementById("socialFollowerSummary");
+    if(!host)return;
+    const count=followerCount();
+    host.textContent=`${count} follower${count===1?"":"s"} · ${(activeCharacter().phoneContacts||[]).filter(p=>p.followsSocial!==false).length} known contacts`;
+  }
+
+  async function generateContactPosts(count=2){
+    const c=activeCharacter(),ch=activeChat();
+    const followers=(c.phoneContacts||[]).filter(p=>p.followsSocial!==false);
+    if(!followers.length)return;
+    const roster=followers.map(p=>`${p.name}|${p.relationship||"contact"}|${p.status||"available"}|${p.textingStyle||"established voice"}`).join("\n");
+    const recentMain=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");
+    const recentPosts=ch.socialPosts.slice(-8).map(p=>`${p.author}: ${p.text}`).join("\n");
+    const raw=await openRouterRequest([{role:"system",content:compileSystemPrompt()+`\n\nSOCIAL FEED GENERATOR
+Create ${count} believable social-media status posts from DIFFERENT contacts when possible.
+
+Available contacts:
+${roster}
+
+Return ONLY lines:
+POST|Exact Contact Name|status text
+
+Rules:
+- Use only listed contacts.
+- Posts should reflect that person's own life/personality, not just orbit the protagonist.
+- They may occasionally relate to recent story events, but often should be about their work, mood, food, dating, errands, jokes, interests, family, complaints, etc.
+- No narration or labels beyond the required POST format.
+- Keep each post under 240 characters.
+- Do not control the protagonist.
+- Respect canon and hard limits.
+
+RECENT STORY:
+${recentMain||"(none)"}
+
+RECENT SOCIAL:
+${recentPosts||"(none)"}`}],500,0.95);
+
+    let added=0;
+    String(raw||"").split(/\r?\n/).forEach(line=>{
+      if(!/^POST\|/i.test(line.trim()))return;
+      const parts=line.trim().split("|").slice(1);
+      const author=String(parts.shift()||"").trim();
+      const text=parts.join("|").trim();
+      if(!text||!followers.some(p=>p.name===author))return;
+      ch.socialPosts.push({id:uid(),role:"assistant",author,text,createdAt:now(),reactions:[],comments:[],likedByUser:false,ambient:true});
+      added++;
+    });
+    if(added){
+      ch.socialUnread=Number(ch.socialUnread||0)+added;
+      ch.updatedAt=now();saveVault();
+    }
+    renderSocial();
+  }
+
+  function maybeScheduleSocial(){
+    const ch=activeChat();
+    if(!settings.ambientSocialEnabled)return;
+    if(!ch.nextSocialPostAt){
+      ch.nextSocialPostAt=Date.now()+45*60*1000;saveVault();return;
+    }
+    if(Date.now()<Number(ch.nextSocialPostAt))return;
+    generateContactPosts(1).finally(()=>{
+      ch.nextSocialPostAt=Date.now()+(35+Math.random()*70)*60*1000;
+      saveVault();
+    });
+  }
+
   function renderSocial(){
     ensureSocialData();
     const host=document.getElementById("socialFeed");if(!host)return;
@@ -80,8 +168,21 @@
           ${mine?'<button class="ghost danger small social-delete" type="button">Delete</button>':""}
         </div>
         <div class="social-post-text">${esc(post.text)}</div>
+        <div class="social-post-actions">
+          <button class="ghost small social-like-btn" type="button">${post.likedByUser?"♥ Liked":"♡ Like"}</button>
+        </div>
         <div class="social-reactions"></div>
         <div class="social-comments"></div>`;
+      card.querySelector(".social-like-btn")?.addEventListener("click",()=>{
+        post.likedByUser=!post.likedByUser;
+        if(post.likedByUser){
+          post.reactions=Array.isArray(post.reactions)?post.reactions:[];
+          if(!post.reactions.some(r=>r.name===me.name&&r.user))post.reactions.push({name:me.name,emoji:"♥",user:true});
+        }else{
+          post.reactions=(post.reactions||[]).filter(r=>!r.user);
+        }
+        saveVault();renderSocial();
+      });
       const react=card.querySelector(".social-reactions");
       (post.reactions||[]).forEach(r=>{
         const chip=document.createElement("span");chip.className="social-reaction-chip";chip.textContent=`${r.emoji||"♥"} ${r.name||""}`;react.appendChild(chip);
@@ -99,7 +200,7 @@
       });
       host.appendChild(card);
     });
-    updateSocialDot();
+    updateFollowerSummary();updateSocialDot();
   }
 
   function parseSocialPacket(raw){
@@ -189,15 +290,33 @@ ${recentMain||"(none)"}`;
   }
 
   function bindSocial(){
+    document.getElementById("socialRefreshBtn")?.addEventListener("click",async ()=>{
+      const b=document.getElementById("socialRefreshBtn");if(b){b.disabled=true;b.textContent="Refreshing…"}
+      try{await generateContactPosts(2)}finally{if(b){b.disabled=false;b.textContent="Refresh Feed"}}
+    });
     document.getElementById("socialForm")?.addEventListener("submit",async e=>{
       e.preventDefault();const input=document.getElementById("socialInput");const text=input?.value||"";
       if(input)input.value="";await postStatus(text);
     });
   }
 
-  const baseRenderAll=renderAll;
-  renderAll=function(){ensureSocialData();baseRenderAll();injectSocialUI();renderSocial();updateSocialDot()};
+  function injectSocialSettings(){
+    const panel=document.querySelector('[data-view="settings"] .panel');
+    if(!panel||document.getElementById("ambientSocialEnabled"))return;
+    const box=document.createElement("div");box.className="memory-compact-card";
+    box.innerHTML=`<h2 class="subhead">Social Activity</h2>
+      <label class="toggle-row"><input id="ambientSocialEnabled" type="checkbox" /><span>Let contacts make occasional Social posts while Noctis is open <small>(uses model calls)</small></span></label>`;
+    panel.appendChild(box);
+    const t=document.getElementById("ambientSocialEnabled");
+    t.checked=!!settings.ambientSocialEnabled;
+    t.addEventListener("change",e=>{settings.ambientSocialEnabled=!!e.target.checked;const ch=activeChat();ch.nextSocialPostAt=settings.ambientSocialEnabled?Date.now()+30*60*1000:0;saveSettings();saveVault()});
+  }
 
-  ensureSocialData();injectSocialUI();bindSocial();renderSocial();updateSocialDot();
+  const baseRenderAll=renderAll;
+  renderAll=function(){ensureSocialData();ensureInitialFollowers();baseRenderAll();injectSocialUI();injectSocialSettings();renderSocial();updateFollowerSummary();updateSocialDot()};
+
+  if(settings.ambientSocialEnabled===undefined)settings.ambientSocialEnabled=false;
+  ensureSocialData();ensureInitialFollowers();injectSocialUI();injectSocialSettings();bindSocial();renderSocial();updateFollowerSummary();updateSocialDot();
+  setInterval(maybeScheduleSocial,60000);setTimeout(maybeScheduleSocial,7000);
   const badge=document.getElementById("buildBadge");if(badge)badge.textContent="v"+BUILD;
 })();
