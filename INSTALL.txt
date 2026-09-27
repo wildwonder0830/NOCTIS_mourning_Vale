@@ -1,30 +1,31 @@
-NOCTIS v0.9.4 — NO MORE JSON STATS
+NOCTIS v0.10.0 — STORY CONTACTS
 
-The selected RP model keeps refusing strict JSON, so this version stops asking it for JSON entirely.
+Phone now has a real story-world contact directory.
 
-STATS NOW USE A SIMPLE LINE PACKET:
-sex=0
-kisses=0
-dates=0
-fights=0
-transformations=0
-majorInjuries=0
+NEW
+- Contacts button directly inside Phone.
+- + Contact for anyone in the story: ex, brother, friend, coworker, rival, etc.
+- Every contact gets a separate text thread.
+- Contact cards now include Relationship / Role.
+- Sync From Story can pull people already known from Stats scene participants,
+  the main cast, and clearly person-based lore entries.
+- Tap a contact to open their thread.
+- Edit jumps to the full contact editor for picture, display name, status,
+  relationship, and custom texting style.
 
-PARTICIPANT|name|species|health|clothing|status|notes
-BEAT|type|detail
-
-This is much easier for RP models to follow and much easier for Noctis to parse.
+Sync From Story is intentionally conservative so Noctis does not create contacts
+for random places, objects, or one-off nouns. Anyone missed can be added with + Contact.
 
 INSTALL
 1. Make a Noctis Backup.
 2. Replace:
    - index.html
+   - phone.js
+   - phone.css
    - stats.js
    - stats.css
-3. Keep every other existing Noctis file.
+3. Keep phone-fix.js and phone-fix.css and all other files.
 4. Fully close/reopen Noctis after GitHub Pages updates.
-5. Build badge should read v0.9.4.
-6. Tap Stats → Update From RP again.
+5. Build badge should read v0.10.0.
 
-Nothing from failed v0.9.3 scans was counted, so you will not get duplicate stats from those failures.
-The readability cleanup and Send-button bot-status badge are still included.
+All prior fixes through v0.9.7 remain included.

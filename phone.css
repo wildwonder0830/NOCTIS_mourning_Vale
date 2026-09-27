@@ -10,3 +10,16 @@
 .phone-composer{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px 12px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:rgba(17,13,24,.96);position:sticky;bottom:0}.phone-composer textarea{min-height:44px;max-height:130px;border-radius:20px;margin:0;resize:none}.phone-composer .send{align-self:end;height:44px}.phone-thread-actions{display:flex;justify-content:center;padding:0 0 8px}
 .memory-meter-grid,.usage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:10px 0 14px}.memory-meter-grid>div,.usage-grid>div{border:1px solid var(--line);border-radius:14px;padding:11px;background:rgba(255,255,255,.025);display:flex;flex-direction:column;gap:3px}.memory-meter-grid strong,.usage-grid strong{font-size:18px}.memory-meter-grid span,.usage-grid span{font-size:10px;color:var(--muted);line-height:1.2}.memory-layer-list{display:grid;gap:6px}.memory-layer-list>div{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid rgba(255,255,255,.05);padding:7px 2px;font-size:12px}.memory-layer-list span{color:var(--muted);text-align:right}.delete-everywhere{font-size:11px!important;padding:4px 7px!important}
 @media(max-width:620px){.phone-shell{padding:0 0 100px}.phone-frame{border-radius:0;border-left:0;border-right:0;min-height:74vh}.phone-messages{height:55vh;min-height:350px}.memory-meter-grid,.usage-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.phone-message-row{max-width:88%}}
+
+
+/* v0.10.0 — Story contact directory */
+.phone-directory-btn{margin-left:auto}
+.phone-directory{margin:8px 10px 10px;padding:12px;border:1px solid var(--line);border-radius:16px;background:rgba(15,11,19,.98)}
+.phone-directory-actions{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 10px}
+.phone-directory-row{display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--line)}
+.phone-directory-row:first-child{border-top:0}
+.phone-directory-avatar{width:38px;height:38px;border-radius:50%;object-fit:cover}
+.phone-directory-open{min-width:0;border:0;background:transparent;color:var(--text);text-align:left;padding:0}
+.phone-directory-open strong,.phone-directory-open span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phone-directory-open span{font-size:11px;color:var(--muted);margin-top:2px}
+.mini-hint{font-size:11px;margin:2px 0 0}

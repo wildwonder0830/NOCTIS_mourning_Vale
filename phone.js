@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.8.0 — Living Worlds / Phone */
 (() => {
-  const LIVING_BUILD = "0.8.0";
+  const LIVING_BUILD = "0.10.0";
   const USAGE_KEY = "noctis-usage-v0.8";
   const RATE_TABLE = {
     "nvidia/nemotron-3-ultra-550b-a55b": { input: 0.50, output: 2.20 }
@@ -34,7 +34,20 @@
                 <div id="phoneHeaderAvatar" class="phone-header-avatar"></div>
                 <div id="phoneHeaderName" class="phone-header-name">Contact</div>
                 <div id="phoneHeaderStatus" class="phone-header-status">available</div>
+                <button id="phoneDirectoryBtn" class="ghost small phone-directory-btn" type="button">Contacts</button>
               </div>
+            </div>
+            <div id="phoneDirectory" class="phone-directory hidden">
+              <div class="section-title-row">
+                <div><strong>Story Contacts</strong><div class="hint mini-hint">Anyone who matters in this timeline can have their own phone thread.</div></div>
+                <button id="closePhoneDirectoryBtn" class="ghost small" type="button">Close</button>
+              </div>
+              <div class="phone-directory-actions">
+                <button id="addStoryContactBtn" class="small" type="button">+ Contact</button>
+                <button id="syncStoryContactsBtn" class="ghost small" type="button">Sync From Story</button>
+              </div>
+              <div id="phoneDirectoryList"></div>
+              <div id="phoneDirectoryStatus" class="test-result"></div>
             </div>
             <div class="phone-away-wrap">
               <label>Away / scene note
@@ -105,6 +118,7 @@
       displayName: i ? `Contact ${i+1}` : (c.name || "Character"),
       avatar: "",
       status: "available",
+      relationship: "",
       textingStyle: "Text naturally in the character's established voice. Keep phone messages concise, specific, and human. Do not write prose narration or control the user's protagonist.",
       createdAt: now(), updatedAt: now()
     };
@@ -121,6 +135,7 @@
         p.displayName = typeof p.displayName === "string" && p.displayName ? p.displayName : p.name;
         p.avatar = typeof p.avatar === "string" ? p.avatar : "";
         p.status = typeof p.status === "string" ? p.status : "available";
+        p.relationship = typeof p.relationship === "string" ? p.relationship : "";
         p.textingStyle = typeof p.textingStyle === "string" ? p.textingStyle : "";
         p.updatedAt = p.updatedAt || now();
       });
@@ -158,13 +173,75 @@
     canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);return canvas.toDataURL("image/jpeg",0.82);
   }
 
+
+  function contactNameKey(name){return String(name||"").trim().toLowerCase().replace(/\s+/g," ")}
+
+  function addContactRecord(name="",relationship="",species=""){
+    const c=activeCharacter();ensureLivingWorldData();
+    const clean=String(name||"").trim();if(!clean)return null;
+    const key=contactNameKey(clean);
+    const existing=c.phoneContacts.find(p=>contactNameKey(p.name)===key||contactNameKey(p.displayName)===key);
+    if(existing){if(!existing.relationship&&relationship)existing.relationship=relationship;return existing}
+    const p=defaultContact(c,c.phoneContacts.length);
+    p.name=clean;p.displayName=clean;p.relationship=relationship||"";
+    if(species)p.textingStyle=`Text naturally in ${clean}'s established voice. Known species/nature: ${species}. Keep phone messages concise, specific, and human. Do not write prose narration or control the user's protagonist.`;
+    c.phoneContacts.push(p);
+    (c.chats||[]).forEach(ch=>{ch.phoneThreads=ch.phoneThreads||{};if(!Array.isArray(ch.phoneThreads[p.id]))ch.phoneThreads[p.id]=[]});
+    saveVault();return p;
+  }
+
+  function renderPhoneDirectory(){
+    const host=$("phoneDirectoryList");if(!host)return;
+    ensureLivingWorldData();const c=activeCharacter();host.innerHTML="";
+    c.phoneContacts.forEach(p=>{
+      const row=document.createElement("div");row.className="phone-directory-row";
+      row.innerHTML=`${avatarMarkup(p,"phone-directory-avatar")}<button type="button" class="phone-directory-open"><strong>${esc(p.displayName||p.name||"Contact")}</strong><span>${esc(p.relationship||p.status||"contact")}</span></button><button type="button" class="ghost small phone-directory-edit">Edit</button>`;
+      row.querySelector(".phone-directory-open").addEventListener("click",()=>{c.activePhoneContactId=p.id;saveVault();renderPhone();$("phoneDirectory")?.classList.add("hidden")});
+      row.querySelector(".phone-directory-edit").addEventListener("click",()=>{c.activePhoneContactId=p.id;saveVault();renderPhone();selectTab("character");setTimeout(()=>$("phoneContactEditor")?.scrollIntoView({behavior:"smooth",block:"start"}),60)});
+      host.appendChild(row);
+    });
+  }
+
+  function addStoryContact(){
+    const name=prompt("Contact name:","");if(name===null||!name.trim())return;
+    const relationship=prompt("Relationship / role (optional):","")??"";
+    const p=addContactRecord(name,relationship);
+    if(p){activeCharacter().activePhoneContactId=p.id;saveVault();renderPhoneContacts();renderPhoneDirectory();renderPhone()}
+  }
+
+  function storyContactCandidates(){
+    const c=activeCharacter(),ch=activeChat(),out=[];
+    const add=(name,relationship="",species="")=>{
+      const n=String(name||"").trim();if(!n)return;
+      if(contactNameKey(n)===contactNameKey(activePersona()?.name))return;
+      if(!out.some(x=>contactNameKey(x.name)===contactNameKey(n)))out.push({name:n,relationship,species});
+    };
+    (ch.sceneCast||[]).forEach(p=>add(p.name,p.notes||"",p.species||""));
+    if(c?.name)add(c.name,c.role||"","");
+    (c.lore||[]).forEach(entry=>{
+      const title=String(entry.title||"").trim(),body=String(entry.body||"");
+      if(title&&/\b(brother|sister|mother|father|mom|dad|ex|friend|best friend|coworker|boss|partner|mate|husband|wife|boyfriend|girlfriend|doctor|officer|detective|roommate|cousin|uncle|aunt)\b/i.test(title+" "+body))add(title,body.slice(0,120),"");
+    });
+    return out;
+  }
+
+  function syncStoryContacts(){
+    const status=$("phoneDirectoryStatus"),candidates=storyContactCandidates();let added=0;
+    candidates.forEach(x=>{
+      const c=activeCharacter(),exists=c.phoneContacts.some(p=>contactNameKey(p.name)===contactNameKey(x.name)||contactNameKey(p.displayName)===contactNameKey(x.name));
+      addContactRecord(x.name,x.relationship,x.species);if(!exists)added++;
+    });
+    renderPhoneContacts();renderPhoneDirectory();renderPhone();
+    if(status)status.textContent=added?`Added ${added} story contact${added===1?"":"s"}.`:"No new story contacts found in the current cast/lore yet.";
+  }
+
   function renderPhoneContacts(){
     const host=$("phoneContactEditor");if(!host)return;ensureLivingWorldData();const c=activeCharacter();host.innerHTML="";
     c.phoneContacts.forEach(p=>{
       const card=document.createElement("div");card.className="phone-contact-editor";
-      card.innerHTML=`<div class="contact-editor-head">${avatarMarkup(p,"contact-editor-avatar")}<div class="contact-editor-title"><strong>${esc(p.displayName||p.name||"Contact")}</strong><span>${esc(p.status||"available")}</span></div><button type="button" class="ghost danger small remove-contact">Remove</button></div><div class="field-grid"><label>Character name<input class="pc-name" value="${esc(p.name)}" /></label><label>Phone display name<input class="pc-display" value="${esc(p.displayName)}" /></label><label>Status<select class="pc-status">${["available","away","at work","sleeping","driving","do not disturb"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></label><label>Contact photo<input class="pc-avatar" type="file" accept="image/*" /></label></div><label>Texting style<textarea class="pc-style" rows="4">${esc(p.textingStyle)}</textarea></label>`;
+      card.innerHTML=`<div class="contact-editor-head">${avatarMarkup(p,"contact-editor-avatar")}<div class="contact-editor-title"><strong>${esc(p.displayName||p.name||"Contact")}</strong><span>${esc(p.status||"available")}</span></div><button type="button" class="ghost danger small remove-contact">Remove</button></div><div class="field-grid"><label>Character name<input class="pc-name" value="${esc(p.name)}" /></label><label>Phone display name<input class="pc-display" value="${esc(p.displayName)}" /></label><label>Relationship / role<input class="pc-relationship" value="${esc(p.relationship||"")}" placeholder="Brother, ex, best friend, coworker…" /></label><label>Status<select class="pc-status">${["available","away","at work","sleeping","driving","do not disturb"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></label><label>Contact photo<input class="pc-avatar" type="file" accept="image/*" /></label></div><label>Texting style<textarea class="pc-style" rows="4">${esc(p.textingStyle)}</textarea></label>`;
       const saveField=(sel,key)=>card.querySelector(sel).addEventListener("input",e=>{p[key]=e.target.value;p.updatedAt=now();saveVault();renderPhoneContactRail();renderPhoneHeader()});
-      saveField(".pc-name","name");saveField(".pc-display","displayName");saveField(".pc-style","textingStyle");
+      saveField(".pc-name","name");saveField(".pc-display","displayName");saveField(".pc-relationship","relationship");saveField(".pc-style","textingStyle");
       card.querySelector(".pc-status").addEventListener("change",e=>{p.status=e.target.value;p.updatedAt=now();saveVault();renderPhone()});
       card.querySelector(".pc-avatar").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{p.avatar=await compressImage(file);p.updatedAt=now();saveVault();renderPhoneContacts();renderPhone()}catch{alert("Could not use that image.")}});
       card.querySelector(".remove-contact").addEventListener("click",()=>{if(c.phoneContacts.length<=1){alert("Keep at least one phone contact in this world.");return}if(!confirm(`Remove ${p.displayName||p.name} from this world's phone?`))return;c.phoneContacts=c.phoneContacts.filter(x=>x.id!==p.id);c.chats.forEach(ch=>{if(ch.phoneThreads)delete ch.phoneThreads[p.id]});c.activePhoneContactId=c.phoneContacts[0]?.id||null;saveVault();renderPhoneContacts();renderPhone()});
@@ -186,10 +263,10 @@
       const del=document.createElement("button");del.type="button";del.className="phone-mini danger";del.textContent="Delete";del.addEventListener("click",()=>{if(!confirm("Delete this message from this phone thread?"))return;ch.phoneThreads[p.id]=msgs.filter(x=>x.id!==msg.id);saveVault();renderPhoneMessages();renderMemoryInspector()});tools.appendChild(del);row.append(bubble,meta,tools);host.appendChild(row)});
     host.scrollTop=host.scrollHeight;
   }
-  function renderPhone(){ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
+  function renderPhone(){ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
 
   function recentPhoneContext(ch=activeChat(),limit=6){const c=activeCharacter(),chunks=[];(c.phoneContacts||[]).forEach(p=>{const arr=(ch.phoneThreads?.[p.id]||[]).slice(-limit);if(!arr.length)return;chunks.push(`TEXT THREAD — ${p.displayName||p.name}\n${arr.map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n")}`)});return chunks.join("\n\n")}
-  function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=phoneThread(ch,p).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
+  function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=phoneThread(ch,p).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nRelationship / role: ${p.relationship||"(not specified)"}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
 
   async function sendPhoneMessage(text){const p=contact(),ch=activeChat();if(!p)return;const clean=text.trim();if(!clean)return;const thread=phoneThread(ch,p);thread.push({id:uid(),role:"user",text:clean,createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const send=$("phoneSendBtn");if(send){send.disabled=true;send.textContent="…"}const typing=$("phoneTyping");if(typing)typing.textContent=`${p.displayName||p.name} is typing…`;try{const reply=await openRouterRequest(phoneApiMessages(p),Math.min(Number(settings.maxTokens||900),500),Math.min(Number(settings.temperature??0.85),1.05));thread.push({id:uid(),role:"assistant",text:String(reply||"").trim(),createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const combined=(clean+" "+reply).toLowerCase();if(/love you|marry me|engaged|break up|we're done|pregnan|mate bond|bonded|confess|betray|secret|promise/.test(combined)){ch.pendingMilestone=true;ch.pendingMilestoneAt=now();saveVault();updateMemoryStatus("Likely major milestone detected in Phone • tap Save Milestone Now if it should become long-term memory.")}}catch(err){alert(`Phone reply failed: ${err?.message||String(err)}`)}finally{if(send){send.disabled=false;send.textContent="Send"}if(typing)typing.textContent=""}}
 
@@ -218,6 +295,10 @@
   renderAll=function(){ensureLivingWorldData();baseRenderAll();renderPhoneContacts();renderPhone();renderMemoryInspector();renderUsagePanel()};
 
   function bindLivingWorldUI(){
+    $("phoneDirectoryBtn")?.addEventListener("click",()=>{$("phoneDirectory")?.classList.toggle("hidden");renderPhoneDirectory()});
+    $("closePhoneDirectoryBtn")?.addEventListener("click",()=>{$("phoneDirectory")?.classList.add("hidden")});
+    $("addStoryContactBtn")?.addEventListener("click",addStoryContact);
+    $("syncStoryContactsBtn")?.addEventListener("click",syncStoryContacts);
     const add=$("addPhoneContactBtn");if(add)add.addEventListener("click",()=>{const c=activeCharacter(),p=defaultContact(c,c.phoneContacts.length);c.phoneContacts.push(p);c.activePhoneContactId=p.id;c.chats.forEach(ch=>{ch.phoneThreads=ch.phoneThreads||{};ch.phoneThreads[p.id]=[]});saveVault();renderPhoneContacts();renderPhone()});
     const form=$("phoneForm");if(form)form.addEventListener("submit",async e=>{e.preventDefault();const input=$("phoneInput"),text=input.value.trim();if(!text)return;input.value="";await sendPhoneMessage(text)});
     const away=$("phoneAwayNote");if(away)away.addEventListener("input",e=>{activeChat().phoneAwayNote=e.target.value;activeChat().updatedAt=now();saveVault()});

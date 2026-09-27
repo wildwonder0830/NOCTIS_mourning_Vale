@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.9.4";
+  const BUILD = "0.10.0";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -374,6 +374,17 @@ ${transcript(newMsgs)}`;
   compileSystemPrompt=function(){
     return baseCompile()+`
 
+SHIFTER / WEREWOLF ANATOMY BOUNDARY — ABSOLUTE
+- Werewolves and shifters may have supernatural instincts, mate bonds, scent, marking, heightened senses, possessiveness, transformation, claws, fangs, growling, biting, dominant/primal energy, or other established fantasy traits.
+- Sexual anatomy remains HUMAN unless the user explicitly establishes otherwise in canon.
+- Human sexual positions are allowed, including doggy style, rear-entry positions, straddling, pinning, carrying, or other consensual human-body positioning.
+- Primal or animalistic ENERGY is allowed when all participants remain fully human/humanoid in sexual anatomy and behavior.
+- Never introduce canine reproductive anatomy or animal genital mechanics.
+- Never refer to a penis or glans as a "knot", "tie", "bulbus glandis", or equivalent canine anatomy.
+- Never use canine genital locking, literal dog mating mechanics, or any sexual behavior involving actual animals/non-humanoid animal bodies.
+- Do not turn supernatural romance into literal animal sex.
+- If prior text used canine anatomy terms, treat them as non-canon mistakes and continue with human anatomy from this point forward.
+
 MAIN-SCENE RP FORMAT — MANDATORY
 - This formatting rule applies to normal RP and Generate My Turn. Phone/text-message mode is exempt.
 - Spoken dialogue must use curly double quotation marks: “Like this.”
@@ -418,16 +429,24 @@ MAIN-SCENE RP FORMAT — MANDATORY
   function injectComposerStatus(){
     const form=document.getElementById("chatForm");
     const send=document.getElementById("sendBtn");
-    if(!form||!send||document.getElementById("composerBotStatus"))return;
-    const wrap=document.createElement("div");
-    wrap.className="send-status-row";
-    send.parentNode.insertBefore(wrap,send);
-    wrap.appendChild(send);
-    const status=document.createElement("div");
-    status.id="composerBotStatus";
-    status.className="composer-bot-status waiting";
-    status.innerHTML='<span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>';
-    wrap.appendChild(status);
+    if(!form||!send)return;
+
+    let wrap=document.getElementById("sendStatusColumn");
+    if(!wrap){
+      wrap=document.createElement("div");
+      wrap.id="sendStatusColumn";
+      wrap.className="send-status-column";
+      send.parentNode.insertBefore(wrap,send);
+      wrap.appendChild(send);
+    }
+
+    if(!document.getElementById("composerBotStatus")){
+      const status=document.createElement("div");
+      status.id="composerBotStatus";
+      status.className="composer-bot-status waiting";
+      status.innerHTML='<span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>';
+      wrap.appendChild(status);
+    }
   }
 
   function setComposerState(state,label){
@@ -457,6 +476,22 @@ MAIN-SCENE RP FORMAT — MANDATORY
 
   const baseRenderAll=renderAll;
   renderAll=function(){ensureStats();baseRenderAll();injectStatsUI();renderStats();};
+
+  const shifterBoundaryLines=[
+    "No canine reproductive anatomy or knotting/tie/bulbus-glandis mechanics",
+    "Human sexual positions including doggy style are allowed; primal/animalistic energy is fine as long as anatomy and participants remain human/humanoid",
+    "No canine genital locking or literal animal mating mechanics",
+    "Werewolf/shifter sexual anatomy stays human unless I explicitly establish otherwise"
+  ];
+  const currentLimits=String(settings.hardLimits||"");
+  let addedBoundary=false;
+  shifterBoundaryLines.forEach(line=>{
+    if(!currentLimits.toLowerCase().includes(line.toLowerCase())){
+      settings.hardLimits=[String(settings.hardLimits||"").trim(),line].filter(Boolean).join("\n");
+      addedBoundary=true;
+    }
+  });
+  if(addedBoundary)saveSettings();
 
   ensureStats();injectStatsUI();seedSceneCast();injectComposerStatus();cleanExistingAssistantPosts();
 
