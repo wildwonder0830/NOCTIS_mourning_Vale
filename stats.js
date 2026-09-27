@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.10.0";
+  const BUILD = "0.11.0";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],

@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.8.0 — Living Worlds / Phone */
 (() => {
-  const LIVING_BUILD = "0.10.0";
+  const LIVING_BUILD = "0.11.0";
   const USAGE_KEY = "noctis-usage-v0.8";
   const RATE_TABLE = {
     "nvidia/nemotron-3-ultra-550b-a55b": { input: 0.50, output: 2.20 }
@@ -16,7 +16,7 @@
     const tabs=document.querySelector('.tabs');
     if(tabs && !tabs.querySelector('[data-tab="phone"]')){
       const memoryTab=tabs.querySelector('[data-tab="memory"]');
-      const b=document.createElement('button');b.dataset.tab='phone';b.className='tab';b.textContent='Phone';
+      const b=document.createElement('button');b.dataset.tab='phone';b.className='tab phone-tab-button';b.innerHTML='Phone <span id="phoneTabUnreadDot" class="phone-tab-unread-dot hidden"></span>';
       tabs.insertBefore(b,memoryTab);
       b.addEventListener('click',()=>selectTab('phone'));
     }
@@ -45,6 +45,16 @@
               <div class="phone-directory-actions">
                 <button id="addStoryContactBtn" class="small" type="button">+ Contact</button>
                 <button id="syncStoryContactsBtn" class="ghost small" type="button">Sync From Story</button>
+              </div>
+              <div class="ambient-text-controls">
+                <label class="toggle-row"><input id="ambientTextsEnabled" type="checkbox" /><span>Ambient incoming texts <small>(uses the selected model)</small></span></label>
+                <label>Frequency
+                  <select id="ambientTextFrequency">
+                    <option value="rare">Rare · about every 1–3 hours</option>
+                    <option value="normal">Normal · about every 30–90 min</option>
+                    <option value="frequent">Frequent · about every 15–45 min</option>
+                  </select>
+                </label>
               </div>
               <div id="phoneDirectoryList"></div>
               <div id="phoneDirectoryStatus" class="test-result"></div>
@@ -136,6 +146,7 @@
         p.avatar = typeof p.avatar === "string" ? p.avatar : "";
         p.status = typeof p.status === "string" ? p.status : "available";
         p.relationship = typeof p.relationship === "string" ? p.relationship : "";
+        p.followsSocial = p.followsSocial !== false;
         p.textingStyle = typeof p.textingStyle === "string" ? p.textingStyle : "";
         p.updatedAt = p.updatedAt || now();
       });
@@ -144,6 +155,11 @@
         if(!ch.phoneThreads || typeof ch.phoneThreads !== "object" || Array.isArray(ch.phoneThreads)) ch.phoneThreads = {};
         c.phoneContacts.forEach(p => { if(!Array.isArray(ch.phoneThreads[p.id])) ch.phoneThreads[p.id] = []; });
         if(typeof ch.phoneAwayNote !== "string") ch.phoneAwayNote = "";
+        if(!ch.phoneUnread || typeof ch.phoneUnread!=="object" || Array.isArray(ch.phoneUnread)) ch.phoneUnread={};
+        c.phoneContacts.forEach(p=>{if(!Number.isFinite(Number(ch.phoneUnread[p.id])))ch.phoneUnread[p.id]=0});
+        if(!Number.isFinite(Number(ch.nextAmbientTextAt))) ch.nextAmbientTextAt=0;
+        if(!Number.isFinite(Number(ch.ambientTextsToday))) ch.ambientTextsToday=0;
+        if(typeof ch.ambientTextsDate!=="string") ch.ambientTextsDate="";
       });
     });
     vault.version = "0.8";
@@ -220,9 +236,37 @@
     if(c?.name)add(c.name,c.role||"","");
     (c.lore||[]).forEach(entry=>{
       const title=String(entry.title||"").trim(),body=String(entry.body||"");
-      if(title&&/\b(brother|sister|mother|father|mom|dad|ex|friend|best friend|coworker|boss|partner|mate|husband|wife|boyfriend|girlfriend|doctor|officer|detective|roommate|cousin|uncle|aunt)\b/i.test(title+" "+body))add(title,body.slice(0,120),"");
+      if(!title)return;
+
+      /* Only auto-create contacts from lore when the TITLE itself looks like
+         a person, relationship, or named NPC. Do not promote places/objects
+         merely because their lore body mentions a brother, ex, friend, etc. */
+      const relationshipTitle=/\b(brother|sister|mother|father|mom|dad|ex|friend|best friend|coworker|boss|partner|mate|husband|wife|boyfriend|girlfriend|doctor|officer|detective|roommate|cousin|uncle|aunt)\b/i.test(title);
+      const looksLikePlaceOrObject=/\b(house|home|apartment|estate|mansion|castle|room|bedroom|kitchen|bathroom|office|school|college|bar|club|hospital|station|woods|forest|packhouse|compound|car|truck|phone|ring|necklace|weapon|book|grimoire|journal|building|street|town|city)\b/i.test(title);
+
+      if(relationshipTitle && !looksLikePlaceOrObject){
+        add(title,body.slice(0,120),"");
+      }
     });
     return out;
+  }
+
+
+  function cleanInvalidAutoContacts(){
+    const c=activeCharacter();
+    const badTitle=/\b(house|home|apartment|estate|mansion|castle|room|bedroom|kitchen|bathroom|office|school|college|bar|club|hospital|station|woods|forest|packhouse|compound|car|truck|phone|ring|necklace|weapon|book|grimoire|journal|building|street|town|city)\b/i;
+    const bad=c.phoneContacts.filter(p=>{
+      if(!badTitle.test(String(p.name||p.displayName||"")))return false;
+      const used=(c.chats||[]).some(ch=>Array.isArray(ch.phoneThreads?.[p.id]) && ch.phoneThreads[p.id].length>0);
+      return !used;
+    });
+    if(!bad.length)return 0;
+    const ids=new Set(bad.map(p=>p.id));
+    c.phoneContacts=c.phoneContacts.filter(p=>!ids.has(p.id));
+    (c.chats||[]).forEach(ch=>{if(ch.phoneThreads)ids.forEach(id=>delete ch.phoneThreads[id])});
+    if(ids.has(c.activePhoneContactId))c.activePhoneContactId=c.phoneContacts[0]?.id||null;
+    saveVault();
+    return bad.length;
   }
 
   function syncStoryContacts(){
@@ -239,9 +283,10 @@
     const host=$("phoneContactEditor");if(!host)return;ensureLivingWorldData();const c=activeCharacter();host.innerHTML="";
     c.phoneContacts.forEach(p=>{
       const card=document.createElement("div");card.className="phone-contact-editor";
-      card.innerHTML=`<div class="contact-editor-head">${avatarMarkup(p,"contact-editor-avatar")}<div class="contact-editor-title"><strong>${esc(p.displayName||p.name||"Contact")}</strong><span>${esc(p.status||"available")}</span></div><button type="button" class="ghost danger small remove-contact">Remove</button></div><div class="field-grid"><label>Character name<input class="pc-name" value="${esc(p.name)}" /></label><label>Phone display name<input class="pc-display" value="${esc(p.displayName)}" /></label><label>Relationship / role<input class="pc-relationship" value="${esc(p.relationship||"")}" placeholder="Brother, ex, best friend, coworker…" /></label><label>Status<select class="pc-status">${["available","away","at work","sleeping","driving","do not disturb"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></label><label>Contact photo<input class="pc-avatar" type="file" accept="image/*" /></label></div><label>Texting style<textarea class="pc-style" rows="4">${esc(p.textingStyle)}</textarea></label>`;
+      card.innerHTML=`<div class="contact-editor-head">${avatarMarkup(p,"contact-editor-avatar")}<div class="contact-editor-title"><strong>${esc(p.displayName||p.name||"Contact")}</strong><span>${esc(p.status||"available")}</span></div><button type="button" class="ghost danger small remove-contact">Remove</button></div><div class="field-grid"><label>Character name<input class="pc-name" value="${esc(p.name)}" /></label><label>Phone display name<input class="pc-display" value="${esc(p.displayName)}" /></label><label>Relationship / role<input class="pc-relationship" value="${esc(p.relationship||"")}" placeholder="Brother, ex, best friend, coworker…" /></label><label>Status<select class="pc-status">${["available","away","at work","sleeping","driving","do not disturb"].map(s=>`<option value="${s}" ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></label><label>Contact photo<input class="pc-avatar" type="file" accept="image/*" /></label></div><label class="toggle-row"><input class="pc-social-follow" type="checkbox" ${p.followsSocial!==false?"checked":""} /><span>Follows protagonist on Social</span></label><label>Texting style<textarea class="pc-style" rows="4">${esc(p.textingStyle)}</textarea></label>`;
       const saveField=(sel,key)=>card.querySelector(sel).addEventListener("input",e=>{p[key]=e.target.value;p.updatedAt=now();saveVault();renderPhoneContactRail();renderPhoneHeader()});
       saveField(".pc-name","name");saveField(".pc-display","displayName");saveField(".pc-relationship","relationship");saveField(".pc-style","textingStyle");
+      card.querySelector(".pc-social-follow").addEventListener("change",e=>{p.followsSocial=!!e.target.checked;p.updatedAt=now();saveVault()});
       card.querySelector(".pc-status").addEventListener("change",e=>{p.status=e.target.value;p.updatedAt=now();saveVault();renderPhone()});
       card.querySelector(".pc-avatar").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;try{p.avatar=await compressImage(file);p.updatedAt=now();saveVault();renderPhoneContacts();renderPhone()}catch{alert("Could not use that image.")}});
       card.querySelector(".remove-contact").addEventListener("click",()=>{if(c.phoneContacts.length<=1){alert("Keep at least one phone contact in this world.");return}if(!confirm(`Remove ${p.displayName||p.name} from this world's phone?`))return;c.phoneContacts=c.phoneContacts.filter(x=>x.id!==p.id);c.chats.forEach(ch=>{if(ch.phoneThreads)delete ch.phoneThreads[p.id]});c.activePhoneContactId=c.phoneContacts[0]?.id||null;saveVault();renderPhoneContacts();renderPhone()});
@@ -249,9 +294,138 @@
     });
   }
 
+
+  function markPhoneRead(contactId){
+    const ch=activeChat();ensureLivingWorldData();
+    if(ch.phoneUnread && contactId && Number(ch.phoneUnread[contactId]||0)>0){
+      ch.phoneUnread[contactId]=0;saveVault();
+    }
+    updatePhoneUnreadUI();
+  }
+
+  function totalPhoneUnread(){
+    const ch=activeChat();ensureLivingWorldData();
+    return Object.values(ch.phoneUnread||{}).reduce((n,v)=>n+(Number(v)||0),0);
+  }
+
+  function updatePhoneUnreadUI(){
+    const ch=activeChat();ensureLivingWorldData();
+    const dot=$("phoneTabUnreadDot");
+    const total=totalPhoneUnread();
+    if(dot){
+      dot.classList.toggle("hidden",total<=0);
+      dot.textContent=total>9?"9+":(total?String(total):"");
+      dot.title=total?`${total} unread message${total===1?"":"s"}`:"";
+    }
+    document.querySelectorAll(".phone-contact-pill").forEach(btn=>{
+      const id=btn.dataset.contactId;
+      const count=Number(ch.phoneUnread?.[id]||0);
+      let badge=btn.querySelector(".phone-unread-badge");
+      if(count>0){
+        if(!badge){badge=document.createElement("span");badge.className="phone-unread-badge";btn.appendChild(badge)}
+        badge.textContent=count>9?"9+":String(count);
+      }else badge?.remove();
+    });
+  }
+
+  function ambientDelayMs(mode){
+    const ranges={rare:[60,180],normal:[30,90],frequent:[15,45]};
+    const [min,max]=ranges[mode]||ranges.normal;
+    const mins=min+Math.random()*(max-min);
+    return Math.round(mins*60*1000);
+  }
+
+  function todayKey(){
+    const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  }
+
+  function recentSocialContext(ch=activeChat()){
+    const posts=Array.isArray(ch.socialPosts)?ch.socialPosts.slice(-3):[];
+    if(!posts.length)return "";
+    return posts.map(p=>`${p.author||"PROTAGONIST"}: ${p.text||""}`).join("\n");
+  }
+
+  async function maybeSendAmbientText(){
+    try{
+      ensureLivingWorldData();
+      if(!settings.ambientTextsEnabled)return;
+      const c=activeCharacter(),ch=activeChat();
+      const today=todayKey();
+      if(ch.ambientTextsDate!==today){ch.ambientTextsDate=today;ch.ambientTextsToday=0;saveVault()}
+      if(Number(ch.ambientTextsToday||0)>=8)return;
+      const nowMs=Date.now();
+      if(!ch.nextAmbientTextAt){
+        ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");
+        saveVault();return;
+      }
+      if(nowMs<Number(ch.nextAmbientTextAt))return;
+
+      const eligible=(c.phoneContacts||[]).filter(p=>p && p.id && !["sleeping","do not disturb","driving"].includes(String(p.status||"").toLowerCase()));
+      if(!eligible.length){
+        ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");saveVault();return;
+      }
+
+      const p=eligible[Math.floor(Math.random()*eligible.length)];
+      const thread=phoneThread(ch,p);
+      const recent=thread.slice(-10).map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n");
+      const mainRecent=getConversationMessages(ch).slice(-6).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n");
+      const social=recentSocialContext(ch);
+
+      const prompt=`AMBIENT PHONE TEXT
+Write ONE unsolicited text message from ${p.name||p.displayName} to the protagonist.
+Relationship/role: ${p.relationship||"(unspecified)"}
+Current status: ${p.status||"available"}
+Texting style: ${p.textingStyle||"Use established voice."}
+
+Rules:
+- Output ONLY the text message itself.
+- No narration, labels, quotation marks, or stage directions.
+- It should feel like something this person chose to text on their own.
+- It may react to recent events/social posts if natural, but do not force a reference.
+- Do not control the protagonist.
+- Keep it concise unless this contact has a reason to send something longer.
+- Respect all canon and hard limits.
+
+RECENT PHONE THREAD:
+${recent||"(none)"}
+
+RECENT MAIN STORY:
+${mainRecent||"(none)"}
+
+RECENT SOCIAL POSTS:
+${social||"(none)"}`;
+
+      const reply=await openRouterRequest([
+        {role:"system",content:compileSystemPrompt()+"\n\n"+prompt}
+      ],Math.min(Number(settings.maxTokens||900),260),Math.min(Number(settings.temperature??0.85),1.0));
+
+      const clean=String(reply||"").trim();
+      if(clean){
+        thread.push({id:uid(),role:"assistant",text:clean,createdAt:now(),ambient:true});
+        ch.phoneUnread[p.id]=Number(ch.phoneUnread[p.id]||0)+1;
+        ch.ambientTextsToday=Number(ch.ambientTextsToday||0)+1;
+        ch.updatedAt=now();
+      }
+      ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");
+      saveVault();renderPhoneMessages();updatePhoneUnreadUI();renderMemoryInspector();
+    }catch(err){
+      try{
+        const ch=activeChat();ch.nextAmbientTextAt=Date.now()+30*60*1000;saveVault();
+      }catch{}
+    }
+  }
+
   function renderPhoneContactRail(){
     const rail=$("phoneContactRail");if(!rail)return;ensureLivingWorldData();const c=activeCharacter();rail.innerHTML="";
-    c.phoneContacts.forEach(p=>{const b=document.createElement("button");b.type="button";b.className=`phone-contact-pill${p.id===c.activePhoneContactId?" active":""}`;b.innerHTML=`${avatarMarkup(p,"phone-rail-avatar")}<span>${esc(p.displayName||p.name)}</span>`;b.addEventListener("click",()=>{c.activePhoneContactId=p.id;saveVault();renderPhone()});rail.appendChild(b)});
+    c.phoneContacts.forEach(p=>{
+      const b=document.createElement("button");
+      b.type="button";b.dataset.contactId=p.id;
+      b.className=`phone-contact-pill${p.id===c.activePhoneContactId?" active":""}`;
+      b.innerHTML=`${avatarMarkup(p,"phone-rail-avatar")}<span>${esc(p.displayName||p.name)}</span>`;
+      b.addEventListener("click",()=>{c.activePhoneContactId=p.id;markPhoneRead(p.id);saveVault();renderPhone()});
+      rail.appendChild(b);
+    });
+    updatePhoneUnreadUI();
   }
   function renderPhoneHeader(){const p=contact();const photo=$("phoneHeaderAvatar"),name=$("phoneHeaderName"),status=$("phoneHeaderStatus");if(!photo||!name||!status||!p)return;photo.innerHTML=avatarMarkup(p,"phone-header-avatar-img");name.textContent=p.displayName||p.name;status.textContent=p.status||"available"}
 
@@ -263,7 +437,7 @@
       const del=document.createElement("button");del.type="button";del.className="phone-mini danger";del.textContent="Delete";del.addEventListener("click",()=>{if(!confirm("Delete this message from this phone thread?"))return;ch.phoneThreads[p.id]=msgs.filter(x=>x.id!==msg.id);saveVault();renderPhoneMessages();renderMemoryInspector()});tools.appendChild(del);row.append(bubble,meta,tools);host.appendChild(row)});
     host.scrollTop=host.scrollHeight;
   }
-  function renderPhone(){ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
+  function renderPhone(){ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();updatePhoneUnreadUI();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
 
   function recentPhoneContext(ch=activeChat(),limit=6){const c=activeCharacter(),chunks=[];(c.phoneContacts||[]).forEach(p=>{const arr=(ch.phoneThreads?.[p.id]||[]).slice(-limit);if(!arr.length)return;chunks.push(`TEXT THREAD — ${p.displayName||p.name}\n${arr.map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n")}`)});return chunks.join("\n\n")}
   function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=phoneThread(ch,p).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nRelationship / role: ${p.relationship||"(not specified)"}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
@@ -299,6 +473,16 @@
     $("closePhoneDirectoryBtn")?.addEventListener("click",()=>{$("phoneDirectory")?.classList.add("hidden")});
     $("addStoryContactBtn")?.addEventListener("click",addStoryContact);
     $("syncStoryContactsBtn")?.addEventListener("click",syncStoryContacts);
+    const ambientToggle=$("ambientTextsEnabled");
+    if(ambientToggle){
+      ambientToggle.checked=!!settings.ambientTextsEnabled;
+      ambientToggle.addEventListener("change",e=>{settings.ambientTextsEnabled=!!e.target.checked;const ch=activeChat();ch.nextAmbientTextAt=settings.ambientTextsEnabled?Date.now()+ambientDelayMs(settings.ambientTextFrequency||"normal"):0;saveSettings();saveVault()});
+    }
+    const ambientFreq=$("ambientTextFrequency");
+    if(ambientFreq){
+      ambientFreq.value=settings.ambientTextFrequency||"normal";
+      ambientFreq.addEventListener("change",e=>{settings.ambientTextFrequency=e.target.value||"normal";const ch=activeChat();ch.nextAmbientTextAt=Date.now()+ambientDelayMs(settings.ambientTextFrequency);saveSettings();saveVault()});
+    }
     const add=$("addPhoneContactBtn");if(add)add.addEventListener("click",()=>{const c=activeCharacter(),p=defaultContact(c,c.phoneContacts.length);c.phoneContacts.push(p);c.activePhoneContactId=p.id;c.chats.forEach(ch=>{ch.phoneThreads=ch.phoneThreads||{};ch.phoneThreads[p.id]=[]});saveVault();renderPhoneContacts();renderPhone()});
     const form=$("phoneForm");if(form)form.addEventListener("submit",async e=>{e.preventDefault();const input=$("phoneInput"),text=input.value.trim();if(!text)return;input.value="";await sendPhoneMessage(text)});
     const away=$("phoneAwayNote");if(away)away.addEventListener("input",e=>{activeChat().phoneAwayNote=e.target.value;activeChat().updatedAt=now();saveVault()});
@@ -308,5 +492,5 @@
     const reset=$("resetUsageBtn");if(reset)reset.addEventListener("click",()=>{if(!confirm("Reset Noctis's local usage counter for this month? This does not change OpenRouter billing."))return;const db=loadUsage();delete db[monthKey()];saveUsage(db);renderUsagePanel()});
   }
 
-  injectUI();ensureLivingWorldData();if(settings.monthlyBudgetUsd===undefined)settings.monthlyBudgetUsd="";saveVault();saveSettings();bindLivingWorldUI();renderPhoneContacts();renderPhone();renderMemoryInspector();renderUsagePanel();const badge=$("buildBadge");if(badge)badge.textContent="v"+LIVING_BUILD;
+  injectUI();ensureLivingWorldData();cleanInvalidAutoContacts();if(settings.monthlyBudgetUsd===undefined)settings.monthlyBudgetUsd="";if(settings.ambientTextsEnabled===undefined)settings.ambientTextsEnabled=false;if(!settings.ambientTextFrequency)settings.ambientTextFrequency="normal";saveVault();saveSettings();bindLivingWorldUI();renderPhoneContacts();renderPhone();updatePhoneUnreadUI();renderMemoryInspector();renderUsagePanel();setInterval(maybeSendAmbientText,60000);setTimeout(maybeSendAmbientText,5000);const badge=$("buildBadge");if(badge)badge.textContent="v"+LIVING_BUILD;
 })();
