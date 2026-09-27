@@ -1,25 +1,30 @@
-NOCTIS v0.9.3 — STATS JSON REPAIR
+NOCTIS v0.9.4 — NO MORE JSON STATS
 
-This fixes the Stats error shown as:
-"JSON Parse error: Unexpected identifier ..."
+The selected RP model keeps refusing strict JSON, so this version stops asking it for JSON entirely.
 
-Why it happened:
-The RP model sometimes ignored the instruction to return JSON and added normal prose.
-The stats importer then tried to parse that prose as JSON.
+STATS NOW USE A SIMPLE LINE PACKET:
+sex=0
+kisses=0
+dates=0
+fights=0
+transformations=0
+majorInjuries=0
 
-What changed:
-- Noctis now extracts a valid JSON object even if the model wraps it in prose or markdown.
-- If the first result still cannot be parsed, Noctis automatically asks the SAME model once to repair its response into valid JSON.
-- Failed scans do NOT alter your counters, scene stats, or RP.
-- Existing v0.9.2 readability cleanup and bot-status badge remain included.
+PARTICIPANT|name|species|health|clothing|status|notes
+BEAT|type|detail
+
+This is much easier for RP models to follow and much easier for Noctis to parse.
 
 INSTALL
-1. Make a Backup.
+1. Make a Noctis Backup.
 2. Replace:
    - index.html
    - stats.js
    - stats.css
 3. Keep every other existing Noctis file.
 4. Fully close/reopen Noctis after GitHub Pages updates.
-5. Badge should read v0.9.3.
+5. Build badge should read v0.9.4.
 6. Tap Stats → Update From RP again.
+
+Nothing from failed v0.9.3 scans was counted, so you will not get duplicate stats from those failures.
+The readability cleanup and Send-button bot-status badge are still included.

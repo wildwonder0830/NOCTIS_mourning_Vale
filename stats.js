@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.9.3";
+  const BUILD = "0.9.4";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -149,37 +149,59 @@
     saveVault();renderBeatLog();
   }
 
-  function normalizeJson(raw){
-    const original=String(raw||"").trim();
-    if(!original)throw new Error("The model returned an empty stats result.");
+  function parseStatsPacket(raw){
+    const text=String(raw||"").replace(/\r/g,"").trim();
+    if(!text)throw new Error("The model returned an empty stats result.");
 
-    const candidates=[];
-    candidates.push(original);
+    const result={
+      increments:{sex:0,kisses:0,dates:0,fights:0,transformations:0,majorInjuries:0},
+      participants:[],
+      beats:[]
+    };
 
-    /* Strip markdown fences if the model ignored the instruction. */
-    candidates.push(
-      original
-        .replace(/^```(?:json)?\s*/i,"")
-        .replace(/\s*```$/,"")
-        .trim()
-    );
+    const count=(key)=>{
+      const re=new RegExp(`(?:^|\\n)\\s*${key}\\s*[:=]\\s*(\\d+)\\b`,"i");
+      const m=text.match(re);
+      return m?Math.max(0,Number(m[1])||0):0;
+    };
+    result.increments.sex=count("sex");
+    result.increments.kisses=count("kisses");
+    result.increments.dates=count("dates");
+    result.increments.fights=count("fights");
+    result.increments.transformations=count("transformations");
+    result.increments.majorInjuries=count("majorInjuries");
 
-    /* Most common failure: valid JSON followed or preceded by commentary.
-       Pull out the widest object and try that independently. */
-    const first=original.indexOf("{"),last=original.lastIndexOf("}");
-    if(first>=0 && last>first)candidates.push(original.slice(first,last+1));
-
-    /* Also inspect fenced blocks anywhere in the reply. */
-    const fenced=[...original.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
-    fenced.forEach(m=>candidates.push(String(m[1]||"").trim()));
-
-    let lastErr=null;
-    for(const c of [...new Set(candidates.filter(Boolean))]){
-      try{return JSON.parse(c)}
-      catch(err){lastErr=err}
+    // PARTICIPANT|name|species|health|clothing|status|notes
+    for(const line of text.split("\n")){
+      const trimmed=line.trim();
+      if(/^PARTICIPANT\|/i.test(trimmed)){
+        const parts=trimmed.split("|").slice(1).map(x=>x.trim());
+        while(parts.length<6)parts.push("");
+        result.participants.push({
+          name:parts[0]||"",
+          species:parts[1]||"",
+          health:parts[2]||"",
+          clothing:parts[3]||"",
+          status:parts[4]||"",
+          notes:parts.slice(5).join("|")||""
+        });
+      }else if(/^BEAT\|/i.test(trimmed)){
+        const parts=trimmed.split("|").slice(1);
+        result.beats.push({
+          type:String(parts.shift()||"Story beat").trim(),
+          detail:parts.join("|").trim()
+        });
+      }
     }
 
-    throw new Error(`Stats response was not valid JSON${lastErr?.message?`: ${lastErr.message}`:""}.`);
+    // If the model omitted participant/beat tags but did provide counters,
+    // still accept the packet rather than failing the whole scan.
+    const hasAnyCounter=Object.values(result.increments).some(n=>Number(n)>0);
+    const hasTagged=result.participants.length||result.beats.length;
+    if(!hasAnyCounter && !hasTagged){
+      throw new Error("The model did not return a recognizable stats packet.");
+    }
+    return result;
   }
 
   async function updateFromRP(){
@@ -208,14 +230,27 @@
 PRIOR CONTEXT is only for understanding. NEVER count events from PRIOR CONTEXT.
 Only count a beat if it actually occurs in NEW TRANSCRIPT. Do not count references, plans, fantasies, jokes, memories, or repeated descriptions of an event that already happened.
 
-Return ONLY strict JSON in exactly this shape:
-{
-  "increments":{"sex":0,"kisses":0,"dates":0,"fights":0,"transformations":0,"majorInjuries":0},
-  "participants":[
-    {"name":"","species":"","health":"","clothing":"","status":"","notes":""}
-  ],
-  "beats":[{"type":"","detail":""}]
-}
+Return ONLY this simple line-based stats packet. Do NOT use JSON.
+
+sex=0
+kisses=0
+dates=0
+fights=0
+transformations=0
+majorInjuries=0
+
+For each person actually present at the END of the new transcript, add one line:
+PARTICIPANT|name|species|health|clothing|status|notes
+
+For each durable story beat, add one line:
+BEAT|type|detail
+
+Rules:
+- Every counter line must appear exactly once.
+- Use whole nonnegative integers only.
+- Use a blank field when a participant detail is unknown.
+- Do not add commentary before or after the packet.
+- Do not use markdown fences.
 
 Tracking definitions:
 - sex: a completed sexual encounter, counted once per encounter, not once per act or orgasm.
@@ -238,30 +273,12 @@ NEW TRANSCRIPT TO TRACK:
 ${transcript(newMsgs)}`;
 
     try{
-      let raw=await openRouterRequest([
-        {role:"system",content:"Return one strict JSON object only. The first character must be { and the final character must be }. No markdown, prose, headings, or explanation."},
+      const raw=await openRouterRequest([
+        {role:"system",content:"Return only the requested line-based stats packet. No JSON. No prose. No markdown."},
         {role:"user",content:prompt}
       ],700,0.02);
 
-      let data;
-      try{
-        data=normalizeJson(raw);
-      }catch(firstParseError){
-        status.textContent="The model answered in the wrong format • repairing stats response…";
-        raw=await openRouterRequest([
-          {role:"system",content:"Convert the supplied text into the exact JSON schema requested. Return ONE valid JSON object only. No prose. No markdown. Do not add facts."},
-          {role:"user",content:`REQUIRED SCHEMA:
-{"increments":{"sex":0,"kisses":0,"dates":0,"fights":0,"transformations":0,"majorInjuries":0},"participants":[{"name":"","species":"","health":"","clothing":"","status":"","notes":""}],"beats":[{"type":"","detail":""}]}
-
-ORIGINAL STATS TASK:
-${prompt}
-
-INVALID MODEL RESPONSE:
-${raw}`}
-        ],700,0);
-        data=normalizeJson(raw);
-      }
-
+      const data=parseStatsPacket(raw);
       const inc=data?.increments||{};
       COUNTERS.forEach(([k])=>{ch.storyStats[k]=Math.max(0,Number(ch.storyStats[k]||0)+Math.max(0,Number(inc[k]||0)))});
 
@@ -292,7 +309,7 @@ ${raw}`}
       ch.updatedAt=now();saveVault();renderStats();
       status.textContent=`Stats updated from ${newMsgs.length} new RP message${newMsgs.length===1?"":"s"}. You can correct any counter with +/−.`;
     }catch(err){
-      status.textContent=`Could not update stats: ${err?.message||String(err)} • Your RP was not changed and nothing was counted.`;
+      status.textContent=`Could not update stats: ${err?.message||String(err)} • Your RP was not changed and nothing was counted. The scanner now uses a non-JSON packet, so if this still fails we can inspect exactly what the model returned.`;
     }finally{btn.disabled=false}
   }
 
