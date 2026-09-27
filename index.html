@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#120b16" />
   <title>Noctis Mourning Vale</title>
   <link rel="stylesheet" href="styles.css?v=0.7.5" />
+  <link rel="stylesheet" href="phone.css?v=0.8.0" />
 </head>
 <body>
   <header id="topbar" class="topbar">
@@ -63,7 +64,6 @@
       </div>
     </section>
 
-
     <section class="view" data-view="persona">
       <div class="panel">
         <div class="section-title-row">
@@ -72,7 +72,6 @@
             <p class="hint">Four reusable protagonist identities. Each timeline remembers which persona it is using.</p>
           </div>
         </div>
-
         <div id="personaSlotRow" class="persona-slot-row" aria-label="Persona slots"></div>
         <div class="persona-file-actions">
           <button id="loadAmanda24PresetBtn" class="send" type="button">Load Amanda 24 Preset</button>
@@ -80,8 +79,6 @@
           <button id="exportPersonaBtn" class="ghost" type="button">Export Active Persona</button>
           <input id="personaImportInput" type="file" accept=".json,.noctis-persona.json,application/json" hidden />
         </div>
-
-
         <label>Name<input id="personaName" placeholder="Amanda" /></label>
         <div class="field-grid">
           <label>Age / Life stage<input id="personaAge" placeholder="Adult" /></label>
@@ -113,32 +110,24 @@
             <button id="chatMenuBtn" class="ghost small">Chats</button>
           </div>
         </div>
-
         <div id="chatManager" class="chat-manager hidden">
-          <div class="section-title-row">
-            <strong>Timelines</strong>
-            <button id="closeChatManagerBtn" class="ghost small">Close</button>
-          </div>
+          <div class="section-title-row"><strong>Timelines</strong><button id="closeChatManagerBtn" class="ghost small">Close</button></div>
           <div id="chatList" class="chat-list"></div>
         </div>
-
         <div class="chat-toolbar">
           <button id="renameChatBtn" class="ghost small">Rename</button>
           <button id="clearChatBtn" class="ghost danger small">Clear</button>
           <button id="deleteChatBtn" class="ghost danger small">Delete Chat</button>
         </div>
-
         <div class="messages-wrap">
           <div id="messages" class="messages"></div>
           <button id="scrollBottomBtn" class="scroll-bottom hidden" type="button" aria-label="Scroll to latest message" title="Scroll to latest message">↓</button>
         </div>
-
         <div class="composer-dock">
           <form id="chatForm" class="composer">
             <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
             <div class="command-hint">Commands: /ooc · /continue · /elaborate · /timeskip · /rewind · /scene · /summary · /memory · /forget · /canon · /persona · /cast · /status</div>
             <button type="submit" id="sendBtn" class="send">Send</button>
-
             <div class="quick-actions" aria-label="Quick roleplay actions">
               <button id="continueBtn" class="ghost quick" type="button">Continue</button>
               <button id="elaborateBtn" class="ghost quick" type="button">Elaborate</button>
@@ -153,102 +142,45 @@
     <section class="view" data-view="memory">
       <div class="panel">
         <h2>Memory</h2>
-        <label>Shared Canon Memory
-          <textarea id="memoryPermanent" rows="9"></textarea>
-        </label>
+        <label>Shared Canon Memory<textarea id="memoryPermanent" rows="9"></textarea></label>
         <p class="hint">Facts that should be true across this character's timelines unless an alternate universe intentionally changes them.</p>
-
         <h2 class="subhead">Active Chat Memory</h2>
         <label>Relationship / Timeline Memory<textarea id="memoryRelationship" rows="8"></textarea></label>
-
         <div class="memory-compact-card">
-          <div class="section-title-row">
-            <div>
-              <h2 class="subhead">Consolidated Memory</h2>
-              <p class="hint">Compress older RP history into a small continuity record while keeping the full transcript untouched.</p>
-            </div>
-            <button id="consolidateMemoryBtn" class="ghost small" type="button">Consolidate Older History</button>
-          </div>
+          <div class="section-title-row"><div><h2 class="subhead">Consolidated Memory</h2><p class="hint">Compress older RP history into a small continuity record while keeping the full transcript untouched.</p></div><button id="consolidateMemoryBtn" class="ghost small" type="button">Consolidate Older History</button></div>
           <textarea id="consolidatedMemory" rows="7" placeholder="Older history will be summarized here. You can edit it manually."></textarea>
           <div id="consolidationStatus" class="test-result"></div>
         </div>
-
-        <div class="section-title-row">
-          <div>
-            <h2 class="subhead">Auto-Saved Milestones</h2>
-            <p class="hint">Major events detected from this timeline. You can delete anything Noctis saved incorrectly.</p>
-          </div>
-        </div>
+        <div class="section-title-row"><div><h2 class="subhead">Auto-Saved Milestones</h2><p class="hint">Major events detected from this timeline. You can delete anything Noctis saved incorrectly.</p></div></div>
         <div id="milestoneList" class="stack"></div>
-
         <h2 class="subhead">Current Scene</h2>
         <label>Location<input id="sceneLocation" /></label>
         <label>Time / Atmosphere<input id="sceneTime" /></label>
         <label>Scene State<textarea id="sceneState" rows="6"></textarea></label>
         <label>Emotional State<textarea id="sceneEmotion" rows="5"></textarea></label>
-
-        <div class="section-title-row">
-          <h2 class="subhead">Open Threads</h2>
-          <button id="addThreadBtn" class="small">+ Add</button>
-        </div>
+        <div class="section-title-row"><h2 class="subhead">Open Threads</h2><button id="addThreadBtn" class="small">+ Add</button></div>
         <div id="threadList" class="stack"></div>
       </div>
     </section>
 
     <section class="view" data-view="lore">
       <div class="panel">
-        <div class="section-title-row">
-          <div>
-            <h2>Lorebook</h2>
-            <p class="hint">Shared canon: people, places, supernatural laws, objects, history, pack rules, prophecies, and anything else the RP should remember.</p>
-          </div>
-          <button id="addLoreBtn" class="small">+ Add</button>
-        </div>
+        <div class="section-title-row"><div><h2>Lorebook</h2><p class="hint">Shared canon: people, places, supernatural laws, objects, history, pack rules, prophecies, and anything else the RP should remember.</p></div><button id="addLoreBtn" class="small">+ Add</button></div>
         <div id="loreList" class="stack"></div>
       </div>
     </section>
 
-
     <section class="view" data-view="rescue">
       <div class="panel">
-        <div class="section-title-row">
-          <div>
-            <h2>RP Rescue</h2>
-            <p class="hint">Archive old roleplays into the active character and chat without sending anything to a model.</p>
-          </div>
-        </div>
-
-        <label>Import Mode
-          <select id="rescueMode">
-            <option value="auto">Auto-detect speaker labels</option>
-            <option value="userfirst">Alternate turns starting with YOU</option>
-            <option value="assistantfirst">Alternate turns starting with CHARACTER</option>
-            <option value="archive">Archive as raw transcript note</option>
-          </select>
-        </label>
-
-        <label>Speaker labels treated as YOU
-          <input id="userLabels" value="you,user,amanda,me" />
-        </label>
-        <label>Speaker labels treated as CHARACTER
-          <input id="assistantLabels" value="assistant,character,bot,jesse,aedan,aeron,henry" />
-        </label>
-
-        <label>Paste transcript
-          <textarea id="rescueText" rows="16" placeholder="Paste an RP transcript here. Examples:&#10;&#10;Amanda: ...&#10;Jesse: ...&#10;&#10;or&#10;&#10;YOU: ...&#10;ASSISTANT: ..."></textarea>
-        </label>
-
-        <div class="button-row">
-          <button id="previewRescueBtn" class="ghost" type="button">Preview Import</button>
-          <button id="commitRescueBtn" class="send" type="button">Import Into Active Chat</button>
-        </div>
-
+        <div class="section-title-row"><div><h2>RP Rescue</h2><p class="hint">Archive old roleplays into the active character and chat without sending anything to a model.</p></div></div>
+        <label>Import Mode<select id="rescueMode"><option value="auto">Auto-detect speaker labels</option><option value="userfirst">Alternate turns starting with YOU</option><option value="assistantfirst">Alternate turns starting with CHARACTER</option><option value="archive">Archive as raw transcript note</option></select></label>
+        <label>Speaker labels treated as YOU<input id="userLabels" value="you,user,amanda,me" /></label>
+        <label>Speaker labels treated as CHARACTER<input id="assistantLabels" value="assistant,character,bot,jesse,aedan,aeron,henry" /></label>
+        <label>Paste transcript<textarea id="rescueText" rows="16" placeholder="Paste an RP transcript here. Examples:&#10;&#10;Amanda: ...&#10;Jesse: ...&#10;&#10;or&#10;&#10;YOU: ...&#10;ASSISTANT: ..."></textarea></label>
+        <div class="button-row"><button id="previewRescueBtn" class="ghost" type="button">Preview Import</button><button id="commitRescueBtn" class="send" type="button">Import Into Active Chat</button></div>
         <div id="rescuePreview" class="test-card hidden"></div>
-
         <h2 class="subhead">Migration Notes</h2>
-        <label>Canon / continuity notes for this character
-          <textarea id="migrationNotes" rows="8" placeholder="Important facts to preserve while moving this RP..."></textarea>
-        </label>
+        <label>Canon / continuity notes for this character<textarea id="migrationNotes" rows="8" placeholder="Important facts to preserve while moving this RP..."></textarea></label>
         <p class="hint">These notes are stored with the character and included in backups. They are not automatically injected into RP unless you copy confirmed facts into Shared Canon Memory or Lore.</p>
       </div>
     </section>
@@ -257,62 +189,26 @@
       <div class="panel">
         <h2>Model Connection</h2>
         <p class="hint">Your OpenRouter key remains only in this browser and is not included in Noctis backups.</p>
-
-        <label>OpenRouter API Key
-          <input id="apiKey" type="password" autocomplete="off" placeholder="sk-or-v1-..." />
-        </label>
-        <div class="button-row">
-          <button id="recoverKeyBtn" class="ghost" type="button">Recover Stored Key</button>
-        </div>
+        <label>OpenRouter API Key<input id="apiKey" type="password" autocomplete="off" placeholder="sk-or-v1-..." /></label>
+        <div class="button-row"><button id="recoverKeyBtn" class="ghost" type="button">Recover Stored Key</button></div>
         <div id="keyRecoveryStatus" class="test-result"></div>
-
-        <label>Model
-          <select id="modelName">
-            <option value="google/gemma-4-31b-it:free">Gemma 4 31B — free (recommended RP test)</option>
-            <option value="nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron 3 Ultra — free (long-context backup)</option>
-            <option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super — free</option>
-            <option value="stealth/space-bunny-alpha">Space Bunny Alpha — free preview</option>
-            <option value="openrouter/free">Random Free Router — not recommended for continuity</option>
-          </select>
-        </label>
+        <label>Model<select id="modelName"><option value="google/gemma-4-31b-it:free">Gemma 4 31B — free (recommended RP test)</option><option value="nvidia/nemotron-3-ultra-550b-a55b:free">Nemotron 3 Ultra — free (long-context backup)</option><option value="nvidia/nemotron-3-super-120b-a12b:free">Nemotron 3 Super — free</option><option value="stealth/space-bunny-alpha">Space Bunny Alpha — free preview</option><option value="openrouter/free">Random Free Router — not recommended for continuity</option></select></label>
         <p class="hint">Fixed models keep the same underlying model between replies. Space Bunny is an anonymous preview model; use it only if you are comfortable with its provider terms.</p>
-
-        <div class="button-row">
-          <button id="testConnectionBtn" class="send" type="button">Test connection</button>
-          <button id="rpTestBtn" class="ghost" type="button">RP quality test</button>
-        </div>
-        <div id="testResult" class="test-result"></div>
-        <div id="rpTestResult" class="test-card hidden"></div>
-
+        <div class="button-row"><button id="testConnectionBtn" class="send" type="button">Test connection</button><button id="rpTestBtn" class="ghost" type="button">RP quality test</button></div>
+        <div id="testResult" class="test-result"></div><div id="rpTestResult" class="test-card hidden"></div>
         <h2 class="subhead">Global Hard Limits</h2>
-        <label>Never generate, suggest, initiate, escalate toward, or eroticize:
-          <textarea id="hardLimits" rows="7" placeholder="One limit per line..."></textarea>
-        </label>
+        <label>Never generate, suggest, initiate, escalate toward, or eroticize:<textarea id="hardLimits" rows="7" placeholder="One limit per line..."></textarea></label>
         <p class="hint">These limits apply to every character and every chat in Noctis. If a scene drifts toward one, the character should redirect naturally instead of proposing it.</p>
-
         <h2 class="subhead">Automatic Memory</h2>
-        <label class="toggle-row">
-          <input id="autoMemory" type="checkbox" />
-          <span>Flag likely milestones locally</span>
-        </label>
+        <label class="toggle-row"><input id="autoMemory" type="checkbox" /><span>Flag likely milestones locally</span></label>
         <p class="hint">Budget mode: Noctis flags likely milestones without making an extra model request. Use “Save Milestone Now” only when you want to spend one request to summarize the current major event.</p>
-        <div class="button-row">
-          <button id="saveMilestoneNowBtn" class="ghost" type="button">Save Milestone Now</button>
-        </div>
+        <div class="button-row"><button id="saveMilestoneNowBtn" class="ghost" type="button">Save Milestone Now</button></div>
         <div id="memoryStatus" class="test-result"></div>
-
         <h2 class="subhead">Generation</h2>
-        <label>My-Turn Generator Style
-          <textarea id="userTurnStyle" rows="5" placeholder="Example: Keep Amanda's replies natural, first person, concise, playful, and consistent with established canon."></textarea>
-        </label>
+        <label>My-Turn Generator Style<textarea id="userTurnStyle" rows="5" placeholder="Example: Keep Amanda's replies natural, first person, concise, playful, and consistent with established canon."></textarea></label>
         <p class="hint">Generate My Turn drafts a reply into the message box. It never sends automatically, so you can edit or discard it first.</p>
-        <label>Temperature
-          <input id="temperature" type="number" min="0" max="2" step="0.05" />
-        </label>
-        <label>Maximum response tokens
-          <input id="maxTokens" type="number" min="64" max="4096" step="64" />
-        </label>
-
+        <label>Temperature<input id="temperature" type="number" min="0" max="2" step="0.05" /></label>
+        <label>Maximum response tokens<input id="maxTokens" type="number" min="64" max="4096" step="64" /></label>
         <h2 class="subhead">Backup Safety</h2>
         <p class="hint">Use Backup regularly. v0.3 exports the whole vault: every character, timeline, lorebook, memory, and transcript. Your API key is deliberately excluded.</p>
       </div>
@@ -320,36 +216,23 @@
   </main>
 
   <template id="entryTemplate">
-    <div class="entry">
-      <input class="entry-title" placeholder="Title" />
-      <textarea class="entry-body" rows="4" placeholder="Details"></textarea>
-      <button class="remove danger small" type="button">Remove</button>
-    </div>
+    <div class="entry"><input class="entry-title" placeholder="Title" /><textarea class="entry-body" rows="4" placeholder="Details"></textarea><button class="remove danger small" type="button">Remove</button></div>
   </template>
 
   <script src="app.js?v=0.7.5"></script>
+  <script src="phone.js?v=0.8.0"></script>
 
   <input id="syncImportInput" type="file" accept=".json,.noctis,application/json" hidden />
 
   <div id="syncModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
     <div class="modal-card sync-card">
-      <div class="modal-head">
-        <div>
-          <div class="eyebrow">DEVICE TRANSFER</div>
-          <h2 id="syncTitle">Sync Noctis</h2>
-        </div>
-        <button id="syncCloseBtn" class="ghost small" type="button">Close</button>
-      </div>
+      <div class="modal-head"><div><div class="eyebrow">DEVICE TRANSFER</div><h2 id="syncTitle">Sync Noctis</h2></div><button id="syncCloseBtn" class="ghost small" type="button">Close</button></div>
       <p class="hint">Each browser keeps its own local vault. Use this to move the complete Noctis vault between your iPhone, iPad, or another device.</p>
-      <div class="sync-actions">
-        <button id="shareSyncBtn" class="send" type="button">Share Current Vault</button>
-        <button id="importSyncBtn" class="ghost" type="button">Import Vault Here</button>
-      </div>
+      <div class="sync-actions"><button id="shareSyncBtn" class="send" type="button">Share Current Vault</button><button id="importSyncBtn" class="ghost" type="button">Import Vault Here</button></div>
       <div class="sync-note"><strong>iPhone/iPad:</strong> Share Current Vault → AirDrop or Save to Files/iCloud Drive → open Noctis on the other device → Import Vault Here.</div>
       <div id="syncStatus" class="test-result"></div>
       <p class="hint tiny">Your OpenRouter API key is deliberately excluded. Enter it separately on each device.</p>
     </div>
   </div>
-
 </body>
 </html>
