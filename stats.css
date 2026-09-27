@@ -16,3 +16,40 @@
 .beat-main small{font-size:10px;color:var(--muted)}
 .message-body strong{font-weight:750}
 @media(max-width:680px){.story-counter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.story-counter{padding:10px}}
+
+/* v0.9.2 — bot activity badge beside Send */
+.send-status-row{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  grid-column:1 / -1;
+}
+.send-status-row #sendBtn{flex:0 0 auto}
+.composer-bot-status{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:34px;
+  padding:5px 9px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  color:var(--muted);
+  background:rgba(255,255,255,.025);
+  font-size:11px;
+  white-space:nowrap;
+}
+.bot-status-dot{
+  width:7px;height:7px;border-radius:50%;
+  background:currentColor;opacity:.75;
+}
+.composer-bot-status.thinking .bot-status-dot,
+.composer-bot-status.replying .bot-status-dot{
+  animation:noctisPulse 1s ease-in-out infinite;
+}
+.composer-bot-status.replying{color:var(--accent2)}
+.composer-bot-status.error{color:#d69aa7}
+@keyframes noctisPulse{0%,100%{transform:scale(.75);opacity:.4}50%{transform:scale(1.15);opacity:1}}
+@media(max-width:620px){
+  .send-status-row{gap:7px}
+  .composer-bot-status{font-size:10px;padding:5px 8px}
+}

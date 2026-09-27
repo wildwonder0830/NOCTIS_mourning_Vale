@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.9.0";
+  const BUILD = "0.9.3";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -150,8 +150,36 @@
   }
 
   function normalizeJson(raw){
-    const t=String(raw||"").trim().replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
-    return JSON.parse(t);
+    const original=String(raw||"").trim();
+    if(!original)throw new Error("The model returned an empty stats result.");
+
+    const candidates=[];
+    candidates.push(original);
+
+    /* Strip markdown fences if the model ignored the instruction. */
+    candidates.push(
+      original
+        .replace(/^```(?:json)?\s*/i,"")
+        .replace(/\s*```$/,"")
+        .trim()
+    );
+
+    /* Most common failure: valid JSON followed or preceded by commentary.
+       Pull out the widest object and try that independently. */
+    const first=original.indexOf("{"),last=original.lastIndexOf("}");
+    if(first>=0 && last>first)candidates.push(original.slice(first,last+1));
+
+    /* Also inspect fenced blocks anywhere in the reply. */
+    const fenced=[...original.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
+    fenced.forEach(m=>candidates.push(String(m[1]||"").trim()));
+
+    let lastErr=null;
+    for(const c of [...new Set(candidates.filter(Boolean))]){
+      try{return JSON.parse(c)}
+      catch(err){lastErr=err}
+    }
+
+    throw new Error(`Stats response was not valid JSON${lastErr?.message?`: ${lastErr.message}`:""}.`);
   }
 
   async function updateFromRP(){
@@ -210,11 +238,30 @@ NEW TRANSCRIPT TO TRACK:
 ${transcript(newMsgs)}`;
 
     try{
-      const raw=await openRouterRequest([
-        {role:"system",content:"Return strict JSON only. No markdown, prose, or explanation."},
+      let raw=await openRouterRequest([
+        {role:"system",content:"Return one strict JSON object only. The first character must be { and the final character must be }. No markdown, prose, headings, or explanation."},
         {role:"user",content:prompt}
-      ],700,0.05);
-      const data=normalizeJson(raw);
+      ],700,0.02);
+
+      let data;
+      try{
+        data=normalizeJson(raw);
+      }catch(firstParseError){
+        status.textContent="The model answered in the wrong format • repairing stats response…";
+        raw=await openRouterRequest([
+          {role:"system",content:"Convert the supplied text into the exact JSON schema requested. Return ONE valid JSON object only. No prose. No markdown. Do not add facts."},
+          {role:"user",content:`REQUIRED SCHEMA:
+{"increments":{"sex":0,"kisses":0,"dates":0,"fights":0,"transformations":0,"majorInjuries":0},"participants":[{"name":"","species":"","health":"","clothing":"","status":"","notes":""}],"beats":[{"type":"","detail":""}]}
+
+ORIGINAL STATS TASK:
+${prompt}
+
+INVALID MODEL RESPONSE:
+${raw}`}
+        ],700,0);
+        data=normalizeJson(raw);
+      }
+
       const inc=data?.increments||{};
       COUNTERS.forEach(([k])=>{ch.storyStats[k]=Math.max(0,Number(ch.storyStats[k]||0)+Math.max(0,Number(inc[k]||0)))});
 
@@ -245,8 +292,47 @@ ${transcript(newMsgs)}`;
       ch.updatedAt=now();saveVault();renderStats();
       status.textContent=`Stats updated from ${newMsgs.length} new RP message${newMsgs.length===1?"":"s"}. You can correct any counter with +/−.`;
     }catch(err){
-      status.textContent=`Could not update stats: ${err?.message||String(err)}`;
+      status.textContent=`Could not update stats: ${err?.message||String(err)} • Your RP was not changed and nothing was counted.`;
     }finally{btn.disabled=false}
+  }
+
+
+  function stripMessySingleStars(text){
+    let s=String(text||"");
+    if(!s.includes("*")) return s;
+
+    /* Protect legitimate **whole action blocks**. */
+    const blocks=[];
+    s=s.replace(/\*\*([\s\S]*?)\*\*/g,(m,body)=>{
+      const token=`@@NOCTIS_BLOCK_${blocks.length}@@`;
+      blocks.push(body);
+      return token;
+    });
+
+    /* Remove ALL remaining star emphasis, including *word* *word* soup. */
+    s=s.replace(/\*+([^*\n]+?)\*+/g,"$1");
+    s=s.replace(/\*/g,"");
+
+    /* Restore the legitimate blocks. */
+    blocks.forEach((body,i)=>{
+      s=s.replace(`@@NOCTIS_BLOCK_${i}@@`,`**${body}**`);
+    });
+    return s;
+  }
+
+  function cleanExistingAssistantPosts(){
+    const ch=activeChat();
+    let changed=false;
+    (ch.messages||[]).forEach(msg=>{
+      if(msg?.role!=="assistant" || typeof msg.text!=="string") return;
+      const cleaned=stripMessySingleStars(msg.text);
+      if(cleaned!==msg.text){
+        msg.text=cleaned;
+        msg.cleanedFormatting=true;
+        changed=true;
+      }
+    });
+    if(changed){ ch.updatedAt=now(); saveVault(); }
   }
 
   function safeBoldActions(root){
@@ -272,21 +358,90 @@ ${transcript(newMsgs)}`;
     return baseCompile()+`
 
 MAIN-SCENE RP FORMAT — MANDATORY
-- This formatting rule applies to the normal RP scene and Generate My Turn. Phone/text-message mode is exempt and remains plain text.
-- Put every spoken line of dialogue inside curly double quotation marks: “Like this.”
-- Put physical actions, gestures, expressions, movement, and narrative/action prose inside double-asterisk markers: **Like this.**
-- Do not bold spoken dialogue.
-- When a turn contains both, use this pattern: **Jesse leans against the counter, watching her.** “Come here, Cricket.”
-- Preserve the markers in the actual generated text so Noctis can store/copy the formatted RP consistently.`;
+- This formatting rule applies to normal RP and Generate My Turn. Phone/text-message mode is exempt.
+- Spoken dialogue must use curly double quotation marks: “Like this.”
+- Actions/narration may use ONE pair of double asterisks around a complete action sentence or complete action paragraph: **Jesse leans against the counter and watches her.**
+- NEVER put asterisks around individual words.
+- NEVER use single-asterisk italics.
+- NEVER produce *word* *word* *word* emphasis.
+- NEVER use stars merely for dramatic emphasis.
+- Do not put dialogue inside action asterisks.
+- Clean example:
+  **Jesse crosses the room and stops beside her.**
+  “Come here, Cricket.”
+- If you cannot maintain this clean format, use plain narration rather than scattered asterisks.`;
   };
 
   const baseRenderMessages=renderMessages;
-  renderMessages=function(){baseRenderMessages();safeBoldActions(document.getElementById("messages"));};
+  renderMessages=function(){cleanExistingAssistantPosts();baseRenderMessages();safeBoldActions(document.getElementById("messages"));};
+
+
+  /* Sanitize main-RP model output before it is saved, so star-soup cannot
+     keep reappearing even if the model ignores the formatting instruction. */
+  const baseOpenRouterForFormat=openRouterRequest;
+  openRouterRequest=async function(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){
+    const sys=Array.isArray(messages)?messages.map(m=>String(m?.content||"")).join("\n"):"";
+    const isPhone=/PHONE\s*\/\s*TEXT MESSAGE MODE/i.test(sys);
+    const isJson=/strict JSON|Return ONLY valid JSON|Return strict JSON/i.test(sys);
+    const isMain=/NOCTIS CORE CONTINUITY RULES|MAIN-SCENE RP FORMAT/i.test(sys) && !isPhone && !isJson;
+
+    setComposerState("thinking","Thinking…");
+    try{
+      const raw=await baseOpenRouterForFormat(messages,maxTokens,temperature);
+      setComposerState("replying","Replying…");
+      const out=isMain?stripMessySingleStars(raw):raw;
+      setTimeout(()=>setComposerState("waiting","Waiting"),260);
+      return out;
+    }catch(err){
+      setComposerState("error","Error");
+      throw err;
+    }
+  };
+
+  function injectComposerStatus(){
+    const form=document.getElementById("chatForm");
+    const send=document.getElementById("sendBtn");
+    if(!form||!send||document.getElementById("composerBotStatus"))return;
+    const wrap=document.createElement("div");
+    wrap.className="send-status-row";
+    send.parentNode.insertBefore(wrap,send);
+    wrap.appendChild(send);
+    const status=document.createElement("div");
+    status.id="composerBotStatus";
+    status.className="composer-bot-status waiting";
+    status.innerHTML='<span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>';
+    wrap.appendChild(status);
+  }
+
+  function setComposerState(state,label){
+    injectComposerStatus();
+    const el=document.getElementById("composerBotStatus");
+    if(!el)return;
+    el.className=`composer-bot-status ${state}`;
+    const text=el.querySelector(".bot-status-text");
+    if(text)text.textContent=label;
+  }
+
+  /* Mirror Noctis's existing activity messages for actions that do not pass
+     through the normal reply wrapper. */
+  const connection=document.getElementById("connectionStatus");
+  if(connection){
+    const obs=new MutationObserver(()=>{
+      const t=(connection.textContent||"").toLowerCase();
+      if(t.includes("drafting"))setComposerState("thinking","Drafting…");
+      else if(t.includes("continuing"))setComposerState("thinking","Continuing…");
+      else if(t.includes("elaborating"))setComposerState("thinking","Elaborating…");
+      else if(t.includes("thinking"))setComposerState("thinking","Thinking…");
+      else if(t.includes("hiccup")||t.includes("failed")||t.includes("error")||t.includes("limit"))setComposerState("error","Needs attention");
+      else if(t.includes("connected")||t.includes("ready")||t.includes("local"))setComposerState("waiting","Waiting");
+    });
+    obs.observe(connection,{childList:true,subtree:true,characterData:true});
+  }
 
   const baseRenderAll=renderAll;
   renderAll=function(){ensureStats();baseRenderAll();injectStatsUI();renderStats();};
 
-  ensureStats();injectStatsUI();seedSceneCast();
+  ensureStats();injectStatsUI();seedSceneCast();injectComposerStatus();cleanExistingAssistantPosts();
 
   document.getElementById("scanSceneStatsBtn")?.addEventListener("click",updateFromRP);
   document.getElementById("addScenePersonBtn")?.addEventListener("click",()=>{

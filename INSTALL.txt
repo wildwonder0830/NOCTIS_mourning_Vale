@@ -1,55 +1,25 @@
-NOCTIS v0.9.0 — STORY STATS + RP FORMATTING
+NOCTIS v0.9.3 — STATS JSON REPAIR
 
-Before updating:
-1. Make a Noctis Backup.
+This fixes the Stats error shown as:
+"JSON Parse error: Unexpected identifier ..."
 
-Upload/replace:
-- index.html
-- stats.js
-- stats.css
+Why it happened:
+The RP model sometimes ignored the instruction to return JSON and added normal prose.
+The stats importer then tried to parse that prose as JSON.
 
-KEEP all existing files:
-- app.js
-- styles.css
-- phone.js
-- phone.css
-- phone-fix.js
-- phone-fix.css
+What changed:
+- Noctis now extracts a valid JSON object even if the model wraps it in prose or markdown.
+- If the first result still cannot be parsed, Noctis automatically asks the SAME model once to repair its response into valid JSON.
+- Failed scans do NOT alter your counters, scene stats, or RP.
+- Existing v0.9.2 readability cleanup and bot-status badge remain included.
 
-After GitHub Pages updates:
-- Fully close/reopen Noctis on iPhone/iPad.
-- Build badge should read v0.9.0.
-- A new Stats tab should appear between Chat and Memory.
-
-WHAT'S NEW
-
-STATS TAB
-- Timeline-specific counters:
-  Sex
-  Kisses
-  Dates
-  Fights
-  Transformations
-  Major injuries
-- +/- buttons let you correct counts manually.
-- Current-scene participant cards:
-  Name
-  Species
-  Health status
-  Clothing worn
-  Scene status / position
-  Notes
-- Chronological Story Beat Log.
-- “Update From RP” reads only transcript messages not previously scanned,
-  updates current-scene participants, and increments newly occurring beats.
-- The scan is manual so it does NOT spend an extra model request on every RP turn.
-
-FORMATTING
-- Main RP dialogue: “curly quotation marks”
-- Main RP actions/narration: **double-asterisk action formatting**
-- Noctis displays **action text** in bold while preserving the stored markers.
-- Phone messages remain plain text.
-
-DATA SAFETY
-- Stats live inside each timeline/chat, so separate RP worlds/timelines stay isolated.
-- Stats are included automatically in normal Noctis vault backups.
+INSTALL
+1. Make a Backup.
+2. Replace:
+   - index.html
+   - stats.js
+   - stats.css
+3. Keep every other existing Noctis file.
+4. Fully close/reopen Noctis after GitHub Pages updates.
+5. Badge should read v0.9.3.
+6. Tap Stats → Update From RP again.
