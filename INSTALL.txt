@@ -1,25 +1,67 @@
-NOCTIS v0.12.3 — VERSION BADGE FIX
+NOCTIS v0.13.0 — STRUCTURED PHYSICAL CANON
 
-You found a real UI bug.
+This version separates stable physical facts from the large Appearance/Body prose box.
 
-Several older extension files still have their own historical version constants:
-- phone.js reports v0.12.0 internally
-- stats.js reports v0.12.0 internally
-- social.js reports v0.12.0 internally
-- import-fix.js reports v0.12.1
-- phone-rp-sync.js reports v0.12.2
+NEW STRUCTURED FIELDS — CHARACTER
+- Species / Nature
+- Height
+- Weight
+- Build / Body Type
+- Eye Color
+- Hair Color
+- Hair Length / Style
+- Skin Tone
+- Distinguishing Features
+- Apparent Age
+- Actual Age
+- Current Form
 
-They all write to the SAME badge.
+NEW STRUCTURED FIELDS — PERSONA
+- Height
+- Weight
+- Build / Body Type
+- Eye Color
+- Hair Color
+- Hair Length / Style
+- Skin Tone
+- Distinguishing Features
+- Apparent Age
+- Actual Age
+- Current Form
 
-That is why Library could show v0.12.2, then Chat could flip back to v0.12.0 after
-Stats/Social re-rendered. The feature patch was still loaded; the badge was just being overwritten.
+Existing Species / Nature remains in the Persona sheet.
 
-FIX
-v0.12.3 adds one final version authority so the top badge always reflects the installed app bundle.
+WHY
+Structured facts are now appended to the model prompt as PHYSICAL CANON.
+If prose and a structured fact conflict, the structured fact wins.
+That should greatly reduce drift such as 4'11" Amanda suddenly being the same height as Henry.
+
+JSON
+Persona exports now include all structured physical fields and targetSlot.
+Persona imports accept those fields.
+Character-card JSON imports recognize common keys such as:
+height, weight, build/body_type, eyeColor/eye_color/eyes, hairColor,
+hairStyle, skinTone/complexion, distinguishingFeatures, apparentAge,
+actualAge, currentForm, and species/race/nature.
+
+INCLUDED
+An updated Amanda Rodriguez Persona 2 JSON is included with:
+- targetSlot 2
+- Height 4'11"
+- petite voluptuous hourglass build
+- hazel eyes
+- dark hair
+- very fair skin
+- apparent age 24
+- true age deliberately unspecified
+- immortal witch
 
 INSTALL
 1. Replace index.html.
-2. Add build-version.js.
-3. Keep every other file exactly as-is.
-4. Fully close/reopen Noctis.
-5. Badge should stay v0.12.3 on Library, Chat, Phone, Stats, Social, etc.
+2. Replace build-version.js.
+3. Replace runtime-fixes.js.
+4. Replace import-fix.js.
+5. Add physical-fields.js.
+6. Keep all other files.
+7. Fully close/reopen Noctis.
+8. Badge should stay v0.13.0 everywhere.

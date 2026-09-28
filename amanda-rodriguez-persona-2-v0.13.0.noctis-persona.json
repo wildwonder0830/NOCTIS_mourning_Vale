@@ -1,0 +1,31 @@
+{
+  "app": "Noctis Mourning Vale",
+  "format": "noctis-persona",
+  "version": "0.13.0",
+  "targetSlot": 2,
+  "persona": {
+    "slot": 2,
+    "name": "Amanda Rodriguez",
+    "age": "Appears 24; actually far older due to immortality",
+    "pronouns": "she/her",
+    "species": "Immortal witch",
+    "occupation": "Owner of a magical witch’s shop serving supernatural creatures and humans alike",
+    "relationshipStyle": "Selective, emotionally intense, independent, and deeply loyal once trust is earned.",
+    "height": "4'11\"",
+    "weight": "",
+    "build": "Petite, voluptuous hourglass",
+    "eyeColor": "Hazel; can read green, brown, gray, or gold depending on the light",
+    "hairColor": "Dark",
+    "hairStyle": "",
+    "skinTone": "Very fair",
+    "distinguishingFeatures": "Thick dark eyelashes",
+    "apparentAge": "24",
+    "actualAge": "Much older than 24; exact true age intentionally unspecified",
+    "currentForm": "Human-presenting immortal witch",
+    "appearance": "Dark, elegant, witchy style; physically appears 24 and does not visibly age.",
+    "personality": "Highly intelligent, observant, self-possessed, curious, witty, compassionate, difficult to intimidate, playful when safe, stubborn, and extremely experienced.",
+    "powers": "Amanda is a vastly experienced immortal witch who has mastered her craft. She is highly skilled in wards, protection, curses and curse-breaking, healing, divination, enchantment, ritual magic, magical contracts and bindings, potioncraft, artifact identification, supernatural research, and dealing with dangerous magical entities.",
+    "canon": "Amanda Rodriguez appears 24 but is far older and immortal. She owns and runs a magical witch’s shop serving humans and supernatural creatures. She is already a master witch, not a novice or newly awakened practitioner. Her shop handles charms, wards, magical diagnosis, curse removal, artifacts, supernatural research, discreet advice, and dangerous magical problems. Her true age is private information.",
+    "preferences": "Treat Amanda as highly competent in magic. Preserve structured physical canon exactly. Do not narrate Amanda’s dialogue, thoughts, feelings, choices, voluntary actions, or reactions for her. Preserve her autonomy in romance, mate-bond, prophecy, and supernatural-fate plots."
+  }
+}
