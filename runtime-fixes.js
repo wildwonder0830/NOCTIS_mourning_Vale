@@ -1,6 +1,6 @@
-/* Noctis Mourning Vale v0.12.4 — Persona Slot + Phone Recovery UI Fixes */
+/* Noctis Mourning Vale v0.13.1 — Persona Slot + Smart RP/Phone Recovery */
 (() => {
-  const BUILD="0.13.0";
+  const BUILD="0.13.1";
   const key=s=>String(s||"").trim().toLowerCase().replace(/\s+/g," ");
 
   /* ---------- PERSONA IMPORT: RESPECT TARGET SLOT ---------- */
@@ -32,9 +32,6 @@
     const keys=["name","age","pronouns","species","occupation","relationshipStyle","appearance","personality","powers","canon","preferences","height","weight","build","eyeColor","hairColor","hairStyle","skinTone","distinguishingFeatures","apparentAge","actualAge","currentForm"];
     keys.forEach(k=>p[k]=typeof src[k]==="string"?src[k]:"");
     p.updatedAt=now();
-
-    /* The imported slot becomes active for the current timeline so the user
-       immediately sees the persona they just imported. */
     activeChat().activePersonaId=p.id;
 
     saveVault();
@@ -70,13 +67,14 @@
     });
   }
 
-  /* ---------- PHONE: VISIBLE RP TEXT RECOVERY ---------- */
+  /* ---------- PHONE DATA ---------- */
   function ensurePhoneData(){
     const c=activeCharacter(),ch=activeChat();
     if(!Array.isArray(c.phoneContacts))c.phoneContacts=[];
     if(!ch.phoneThreads||typeof ch.phoneThreads!=="object"||Array.isArray(ch.phoneThreads))ch.phoneThreads={};
     if(!ch.phoneUnread||typeof ch.phoneUnread!=="object"||Array.isArray(ch.phoneUnread))ch.phoneUnread={};
     c.phoneContacts.forEach(p=>{
+      if(!p.id)p.id=uid();
       if(!Array.isArray(ch.phoneThreads[p.id]))ch.phoneThreads[p.id]=[];
       if(!Number.isFinite(Number(ch.phoneUnread[p.id])))ch.phoneUnread[p.id]=0;
     });
@@ -84,113 +82,281 @@
 
   function findPhoneContact(name){
     const wanted=key(name);
+    if(!wanted)return null;
     return (activeCharacter().phoneContacts||[]).find(p=>{
       const names=[p.name,p.displayName].map(key).filter(Boolean);
-      return names.includes(wanted) || names.some(n=>wanted.includes(n)||n.includes(wanted));
+      return names.includes(wanted) ||
+        names.some(n=>wanted===n || wanted.startsWith(n+" ") || n.startsWith(wanted+" "));
     }) || null;
   }
 
-  function addRecoveredText(contact,text){
+  function makePhoneContact(name,relationship=""){
+    ensurePhoneData();
+    const c=activeCharacter(),ch=activeChat();
+    const clean=String(name||"").trim();
+    if(!clean)return null;
+
+    const existing=findPhoneContact(clean);
+    if(existing){
+      if(relationship && !String(existing.relationship||"").trim())existing.relationship=relationship;
+      return existing;
+    }
+
+    const p={
+      id:uid(),
+      name:clean,
+      displayName:clean,
+      avatar:"",
+      status:"available",
+      relationship:String(relationship||"").trim(),
+      followsSocial:true,
+      textingStyle:`Text naturally in ${clean}'s established voice. Keep phone messages concise, specific, and human. Do not write prose narration or control the user's protagonist.`,
+      createdAt:now(),
+      updatedAt:now()
+    };
+
+    c.phoneContacts.push(p);
+    (c.chats||[]).forEach(chat=>{
+      if(!chat.phoneThreads||typeof chat.phoneThreads!=="object"||Array.isArray(chat.phoneThreads))chat.phoneThreads={};
+      if(!Array.isArray(chat.phoneThreads[p.id]))chat.phoneThreads[p.id]=[];
+      if(!chat.phoneUnread||typeof chat.phoneUnread!=="object"||Array.isArray(chat.phoneUnread))chat.phoneUnread={};
+      if(!Number.isFinite(Number(chat.phoneUnread[p.id])))chat.phoneUnread[p.id]=0;
+    });
+    if(!c.activePhoneContactId)c.activePhoneContactId=p.id;
+    return p;
+  }
+
+  function samePhoneMessage(a,role,text){
+    return a && a.role===role && key(a.text)===key(text);
+  }
+
+  function addRecoveredText(contact,direction,text,sourceIndex=null){
+    ensurePhoneData();
     const ch=activeChat(),clean=String(text||"").trim();
     if(!contact||!clean)return false;
+
+    const role=String(direction||"").toUpperCase()==="OUT" ? "user" : "assistant";
     const thread=ch.phoneThreads[contact.id]||(ch.phoneThreads[contact.id]=[]);
-    if(thread.some(m=>m.role==="assistant" && key(m.text)===key(clean)))return false;
-    thread.push({id:uid(),role:"assistant",text:clean,createdAt:now(),fromMainRp:true,recovered:true});
-    ch.phoneUnread[contact.id]=Number(ch.phoneUnread[contact.id]||0)+1;
+
+    if(thread.some(m=>samePhoneMessage(m,role,clean)))return false;
+
+    thread.push({
+      id:uid(),
+      role,
+      text:clean,
+      createdAt:now(),
+      fromMainRp:true,
+      recovered:true,
+      sourceIndex:Number.isFinite(Number(sourceIndex))?Number(sourceIndex):null
+    });
+
+    if(role==="assistant"){
+      ch.phoneUnread[contact.id]=Number(ch.phoneUnread[contact.id]||0)+1;
+    }
     ch.updatedAt=now();
     return true;
   }
 
   function parseRecovery(raw){
-    const rows=[];
+    const contacts=[];
+    const texts=[];
+
     String(raw||"").split(/\r?\n/).forEach(line=>{
       const t=line.trim();
-      if(!/^PHONE\|/i.test(t))return;
-      const parts=t.split("|").slice(1);
-      const name=String(parts.shift()||"").trim();
-      const text=parts.join("|").trim();
-      if(name&&text)rows.push({name,text});
+      if(!t || /^NONE$/i.test(t))return;
+
+      if(/^CONTACT\|/i.test(t)){
+        const parts=t.split("|").slice(1);
+        const name=String(parts.shift()||"").trim();
+        const relationship=parts.join("|").trim();
+        if(name)contacts.push({name,relationship});
+        return;
+      }
+
+      if(/^TEXT\|/i.test(t)){
+        const parts=t.split("|").slice(1);
+        const index=Number(parts.shift());
+        const direction=String(parts.shift()||"").trim().toUpperCase();
+        const name=String(parts.shift()||"").trim();
+        const text=parts.join("|").trim();
+        if((direction==="IN"||direction==="OUT") && name && text){
+          texts.push({index:Number.isFinite(index)?index:999999,direction,name,text});
+        }
+      }
     });
-    return rows;
+
+    texts.sort((a,b)=>a.index-b.index);
+    return {contacts,texts};
   }
 
-  async function recoverRpTexts(){
+  /* ---------- SMART RECOVERY: CONTACTS + INCOMING + OUTGOING ---------- */
+  async function recoverRpPhoneHistory(){
     ensurePhoneData();
     const c=activeCharacter(),ch=activeChat();
-    const contacts=c.phoneContacts||[];
     const status=document.getElementById("rpPhoneSyncStatus");
 
-    if(!contacts.length){
-      if(status)status.textContent="Add Henry to Phone Contacts first.";
-      else alert("Add Henry to Phone Contacts first.");
-      return;
-    }
+    const recent=(ch.messages||[])
+      .filter(m=>(m.role==="assistant"||m.role==="user") && String(m.text||"").trim())
+      .slice(-100);
 
-    const recent=(ch.messages||[]).filter(m=>m.role==="assistant"&&m.text).slice(-60);
     if(!recent.length){
-      if(status)status.textContent="No recent character RP posts to scan.";
+      if(status)status.textContent="No RP messages are available to scan.";
       return;
     }
 
-    const roster=contacts.map(p=>`${p.name}${p.displayName&&p.displayName!==p.name?` / ${p.displayName}`:""}${p.relationship?` — ${p.relationship}`:""}`).join("\n");
-    const transcript=recent.map((m,i)=>`[${i+1}] ${m.text}`).join("\n\n");
+    const existing=(c.phoneContacts||[])
+      .map(p=>`${p.name||p.displayName}${p.relationship?` — ${p.relationship}`:""}`)
+      .join("\n") || "(none yet)";
+
+    const transcript=recent.map((m,i)=>
+      `[${i+1}] ${m.role==="user"?"PROTAGONIST":"CHARACTER/WORLD"}: ${m.text}`
+    ).join("\n\n");
 
     const btn=document.getElementById("rpPhoneSyncBtn");
     if(btn){btn.disabled=true;btn.textContent="Scanning…"}
-    if(status)status.textContent=`Scanning ${recent.length} recent character posts…`;
+    if(status)status.textContent=`Scanning ${recent.length} RP posts for contacts and sent texts…`;
 
-    const prompt=`MAIN-RP PHONE RECOVERY
+    const prompt=`MAIN-RP PHONE HISTORY RECOVERY
 
-Known phone contacts:
-${roster}
+Existing phone contacts:
+${existing}
 
-From the RP transcript below, extract ONLY text/SMS messages that one of those known contacts ACTUALLY SENT to the protagonist.
+Read BOTH protagonist posts and character/world posts.
 
-Important:
-- Spoken dialogue is NOT a text.
-- Thoughts are NOT texts.
-- Drafts that were not sent are NOT texts.
-- A character holding or checking a phone is NOT enough.
-- If a character sent three separate texts, return THREE separate lines.
-- Preserve the actual message wording as closely as possible.
+Your job has TWO parts:
 
-Return ONLY:
-PHONE|Exact Contact Name|message text
+1. CONTACTS
+Identify explicitly named people who clearly belong in the protagonist's phone because the RP establishes a real personal connection or phone exchange.
+Examples: a date, friend, coworker, family member, romantic interest, or named person who actually texted/messaged the protagonist.
+Do NOT invent people.
+Do NOT add unnamed roles such as "waiter", "driver", "publicist", "actor", or "security."
+Do NOT add places, organizations, objects, or titles as people.
+If Derek is explicitly established in this transcript as the protagonist's premiere date or as someone who texted her, he should be a contact.
 
-If none exist, return:
+2. TEXT HISTORY
+Extract EVERY text/SMS/phone-message exchange that actually occurred in the RP, in BOTH directions:
+- IN = contact sent a text to the protagonist.
+- OUT = protagonist sent a text to that contact.
+
+Spoken dialogue is NOT a text.
+Thoughts are NOT texts.
+An unsent draft is NOT a text.
+Simply holding/checking a phone is NOT a text.
+Do not invent missing message content.
+If the RP gives the exact or clearly paraphrased content of an actually sent message, preserve it as closely as possible.
+If one person sends three separate texts, return three TEXT lines.
+Use the transcript number where the event appears so chronology can be preserved.
+
+Return ONLY lines in these exact formats:
+
+CONTACT|Exact Name|short relationship/role
+TEXT|transcript number|IN|Exact Name|message content
+TEXT|transcript number|OUT|Exact Name|message content
+
+If no contacts or texts qualify, return:
 NONE
 
-TRANSCRIPT:
+RP TRANSCRIPT:
 ${transcript}`;
 
     try{
       const raw=await openRouterRequest([
-        {role:"system",content:"Extract only actually-sent phone messages. Return PHONE|name|message lines or NONE. No JSON, markdown, or explanation."},
+        {role:"system",content:"You are a strict fictional continuity extractor. Return only CONTACT|... and TEXT|... lines or NONE. Never invent names or message content."},
         {role:"user",content:prompt}
-      ],800,0.05);
+      ],1400,0.05);
 
-      const rows=parseRecovery(raw);
-      let added=0;
-      rows.forEach(r=>{
-        const p=findPhoneContact(r.name);
-        if(p && addRecoveredText(p,r.text))added++;
+      const packet=parseRecovery(raw);
+      let contactsAdded=0,textsAdded=0;
+
+      packet.contacts.forEach(row=>{
+        const existed=!!findPhoneContact(row.name);
+        const p=makePhoneContact(row.name,row.relationship);
+        if(p && !existed)contactsAdded++;
+      });
+
+      packet.texts.forEach(row=>{
+        let p=findPhoneContact(row.name);
+        if(!p){
+          p=makePhoneContact(row.name,"Story contact");
+          if(p)contactsAdded++;
+        }
+        if(p && addRecoveredText(p,row.direction,row.text,row.index))textsAdded++;
+      });
+
+      /* Stable chronological ordering for recovered events. Existing native
+         phone messages without a source index stay in their existing order. */
+      (c.phoneContacts||[]).forEach(p=>{
+        const thread=ch.phoneThreads?.[p.id];
+        if(!Array.isArray(thread)||thread.length<2)return;
+        const indexed=thread.filter(m=>Number.isFinite(Number(m.sourceIndex)));
+        if(!indexed.length)return;
+        const unindexed=thread.filter(m=>!Number.isFinite(Number(m.sourceIndex)));
+        indexed.sort((a,b)=>Number(a.sourceIndex)-Number(b.sourceIndex));
+        ch.phoneThreads[p.id]=[...unindexed,...indexed];
       });
 
       saveVault();
-      try{if(typeof renderPhone==="function")renderPhone()}catch{}
-      try{if(typeof updatePhoneUnreadUI==="function")updatePhoneUnreadUI()}catch{}
-      try{if(typeof renderMemoryInspector==="function")renderMemoryInspector()}catch{}
+      renderAll();
 
-      if(status)status.textContent=added
-        ?`Added ${added} RP text${added===1?"":"s"} to Phone.`
-        :"No new sent texts were found. If Henry sent them much earlier, temporarily continue the RP near those messages and scan again.";
+      const bits=[];
+      if(contactsAdded)bits.push(`${contactsAdded} new contact${contactsAdded===1?"":"s"}`);
+      if(textsAdded)bits.push(`${textsAdded} text message${textsAdded===1?"":"s"}`);
+
+      if(status){
+        status.textContent=bits.length
+          ?`Imported ${bits.join(" and ")} from the RP. Incoming AND outgoing texts are now supported.`
+          :"The scan completed, but everything it found was already in Phone or no explicit sent texts were present.";
+      }
     }catch(err){
       if(status)status.textContent=`Phone sync failed: ${err?.message||String(err)}`;
     }finally{
-      if(btn){btn.disabled=false;btn.textContent="Sync RP Texts"}
+      if(btn){btn.disabled=false;btn.textContent="Sync Contacts + RP Texts"}
     }
   }
 
+  /* ---------- LOCAL FUTURE OUTGOING-TEXT BRIDGE ---------- */
+  function quoteParts(text){
+    const out=[];
+    const re=/["“]([^"”]{1,1000})["”]/g;
+    let m;
+    while((m=re.exec(String(text||""))))out.push(m[1].trim());
+    return out.filter(Boolean);
+  }
+
+  function obviousOutgoingTextEvent(raw){
+    const text=String(raw||"");
+    if(!/\b(text(?:ed|s|ing)?|messag(?:e|ed|es|ing)|dm(?:ed|s|ing)?|sent\s+(?:him|her|them|[A-Z][\w'-]+)\s+(?:a\s+)?(?:text|message))\b/i.test(text))return null;
+
+    const contacts=(activeCharacter().phoneContacts||[]);
+    const mentioned=contacts.filter(p=>{
+      const n=String(p.name||p.displayName||"").trim();
+      return n && new RegExp(`\\b${n.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}\\b`,"i").test(text);
+    });
+    if(mentioned.length!==1)return null;
+
+    const quotes=quoteParts(text);
+    if(!quotes.length)return null;
+
+    return {contact:mentioned[0],texts:quotes};
+  }
+
+  function patchFutureOutgoingTexts(){
+    const form=document.getElementById("chatForm");
+    if(!form || form.dataset.phoneOutBridge==="1")return;
+    form.dataset.phoneOutBridge="1";
+
+    form.addEventListener("submit",()=>{
+      const input=document.getElementById("messageInput");
+      const raw=input?.value||"";
+      const event=obviousOutgoingTextEvent(raw);
+      if(!event)return;
+
+      event.texts.forEach(t=>addRecoveredText(event.contact,"OUT",t,null));
+      saveVault();
+    },true);
+  }
+
+  /* ---------- UI ---------- */
   function injectPhoneRecoveryControls(){
     const phoneView=document.querySelector('[data-view="phone"]');
     if(phoneView && !document.getElementById("rpPhoneSyncPanel")){
@@ -201,15 +367,23 @@ ${transcript}`;
       panel.innerHTML=`
         <div>
           <strong>RP → Phone Sync</strong>
-          <div class="hint mini-hint">Pull texts that were actually sent inside the main RP into the matching contact thread.</div>
+          <div class="hint mini-hint">Find story contacts and copy texts actually sent in the main RP into the correct phone thread — incoming and outgoing.</div>
         </div>
-        <button id="rpPhoneSyncBtn" class="ghost small" type="button">Sync RP Texts</button>
+        <button id="rpPhoneSyncBtn" class="ghost small" type="button">Sync Contacts + RP Texts</button>
         <div id="rpPhoneSyncStatus" class="test-result"></div>`;
       shell.insertBefore(panel,shell.firstChild);
-      document.getElementById("rpPhoneSyncBtn")?.addEventListener("click",recoverRpTexts);
     }
 
-    /* Also expose it in Settings so it cannot disappear inside the Contacts drawer. */
+    /* Replace the old listener/button if an earlier runtime patch created it. */
+    const oldBtn=document.getElementById("rpPhoneSyncBtn");
+    if(oldBtn && oldBtn.dataset.smartSync!=="1"){
+      const fresh=oldBtn.cloneNode(true);
+      fresh.dataset.smartSync="1";
+      fresh.textContent="Sync Contacts + RP Texts";
+      oldBtn.parentNode.replaceChild(fresh,oldBtn);
+      fresh.addEventListener("click",recoverRpPhoneHistory);
+    }
+
     const settingsPanel=document.querySelector('[data-view="settings"] .panel');
     if(settingsPanel && !document.getElementById("rpPhoneSyncSettingsPanel")){
       const box=document.createElement("div");
@@ -217,10 +391,16 @@ ${transcript}`;
       box.className="memory-compact-card";
       box.innerHTML=`
         <h2 class="subhead">RP → Phone Sync</h2>
-        <p class="hint">If a character sends texts inside the main RP and they do not appear in Phone, use this recovery scan.</p>
-        <button id="rpPhoneSyncSettingsBtn" class="ghost small" type="button">Sync Recent RP Texts</button>`;
+        <p class="hint">Recover named story contacts plus incoming and outgoing text messages from the main RP.</p>
+        <button id="rpPhoneSyncSettingsBtn" class="ghost small" type="button">Sync Contacts + RP Texts</button>`;
       settingsPanel.appendChild(box);
-      document.getElementById("rpPhoneSyncSettingsBtn")?.addEventListener("click",()=>{
+    }
+
+    const settingsBtn=document.getElementById("rpPhoneSyncSettingsBtn");
+    if(settingsBtn && settingsBtn.dataset.smartSync!=="1"){
+      settingsBtn.dataset.smartSync="1";
+      settingsBtn.textContent="Sync Contacts + RP Texts";
+      settingsBtn.addEventListener("click",()=>{
         selectTab("phone");
         setTimeout(()=>document.getElementById("rpPhoneSyncBtn")?.click(),80);
       });
@@ -229,11 +409,12 @@ ${transcript}`;
 
   patchPersonaImport();
   injectPhoneRecoveryControls();
+  patchFutureOutgoingTexts();
 
-  /* Re-apply after Noctis dynamically rebuilds tabs/views. */
   const obs=new MutationObserver(()=>{
     patchPersonaImport();
     injectPhoneRecoveryControls();
+    patchFutureOutgoingTexts();
   });
   obs.observe(document.body,{childList:true,subtree:true});
 
