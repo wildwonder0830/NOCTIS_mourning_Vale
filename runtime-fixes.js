@@ -1,6 +1,6 @@
-/* Noctis Mourning Vale v0.13.1 — Persona Slot + Smart RP/Phone Recovery */
+/* Noctis Mourning Vale v0.13.2 — Deep RP/Phone Recovery */
 (() => {
-  const BUILD="0.13.1";
+  const BUILD="0.13.2";
   const key=s=>String(s||"").trim().toLowerCase().replace(/\s+/g," ");
 
   /* ---------- PERSONA IMPORT: RESPECT TARGET SLOT ---------- */
@@ -12,20 +12,16 @@
   }
 
   function requestedSlot(parsed,src){
-    const raw = parsed?.targetSlot ?? parsed?.slot ?? src?.targetSlot ?? src?.slot;
+    const raw=parsed?.targetSlot ?? parsed?.slot ?? src?.targetSlot ?? src?.slot;
     const n=Number(raw);
-    return Number.isInteger(n) && n>=1 && n<=4 ? n : null;
+    return Number.isInteger(n)&&n>=1&&n<=4?n:null;
   }
 
   function importPersonaIntoSlot(src,slotNumber=null){
     ensurePersonas(vault);
-    let p=null;
-
-    if(slotNumber){
-      p=vault.personas.find(x=>Number(x.slot)===slotNumber) || vault.personas[slotNumber-1];
-    }else{
-      p=activePersona();
-    }
+    let p=slotNumber
+      ? (vault.personas.find(x=>Number(x.slot)===slotNumber)||vault.personas[slotNumber-1])
+      : activePersona();
 
     if(!p)throw new Error("Could not find the requested persona slot.");
 
@@ -33,7 +29,6 @@
     keys.forEach(k=>p[k]=typeof src[k]==="string"?src[k]:"");
     p.updatedAt=now();
     activeChat().activePersonaId=p.id;
-
     saveVault();
     renderPersonas();
     renderPersonaFields();
@@ -43,8 +38,7 @@
 
   function patchPersonaImport(){
     const old=document.getElementById("personaImportInput");
-    if(!old || old.dataset.slotAware==="1")return;
-
+    if(!old||old.dataset.slotAware==="1")return;
     const fresh=old.cloneNode(true);
     fresh.dataset.slotAware="1";
     old.parentNode.replaceChild(fresh,old);
@@ -55,24 +49,21 @@
         const parsed=JSON.parse(await file.text());
         const src=personaSource(parsed);
         if(!src)throw new Error("That file is not a Noctis persona import.");
-
-        const slot=requestedSlot(parsed,src);
-        const p=importPersonaIntoSlot(src,slot);
+        const p=importPersonaIntoSlot(src,requestedSlot(parsed,src));
         alert(`Imported ${p.name||"persona"} into Persona Slot ${p.slot}.`);
       }catch(err){
         alert(`Could not import persona: ${err?.message||String(err)}`);
-      }finally{
-        e.target.value="";
-      }
+      }finally{e.target.value=""}
     });
   }
 
-  /* ---------- PHONE DATA ---------- */
+  /* ---------- PHONE HELPERS ---------- */
   function ensurePhoneData(){
     const c=activeCharacter(),ch=activeChat();
     if(!Array.isArray(c.phoneContacts))c.phoneContacts=[];
     if(!ch.phoneThreads||typeof ch.phoneThreads!=="object"||Array.isArray(ch.phoneThreads))ch.phoneThreads={};
     if(!ch.phoneUnread||typeof ch.phoneUnread!=="object"||Array.isArray(ch.phoneUnread))ch.phoneUnread={};
+
     c.phoneContacts.forEach(p=>{
       if(!p.id)p.id=uid();
       if(!Array.isArray(ch.phoneThreads[p.id]))ch.phoneThreads[p.id]=[];
@@ -86,19 +77,19 @@
     return (activeCharacter().phoneContacts||[]).find(p=>{
       const names=[p.name,p.displayName].map(key).filter(Boolean);
       return names.includes(wanted) ||
-        names.some(n=>wanted===n || wanted.startsWith(n+" ") || n.startsWith(wanted+" "));
-    }) || null;
+        names.some(n=>wanted.startsWith(n+" ")||n.startsWith(wanted+" "));
+    })||null;
   }
 
   function makePhoneContact(name,relationship=""){
     ensurePhoneData();
-    const c=activeCharacter(),ch=activeChat();
+    const c=activeCharacter();
     const clean=String(name||"").trim();
     if(!clean)return null;
 
     const existing=findPhoneContact(clean);
     if(existing){
-      if(relationship && !String(existing.relationship||"").trim())existing.relationship=relationship;
+      if(relationship&&!String(existing.relationship||"").trim())existing.relationship=relationship;
       return existing;
     }
 
@@ -116,18 +107,16 @@
     };
 
     c.phoneContacts.push(p);
+
     (c.chats||[]).forEach(chat=>{
       if(!chat.phoneThreads||typeof chat.phoneThreads!=="object"||Array.isArray(chat.phoneThreads))chat.phoneThreads={};
       if(!Array.isArray(chat.phoneThreads[p.id]))chat.phoneThreads[p.id]=[];
       if(!chat.phoneUnread||typeof chat.phoneUnread!=="object"||Array.isArray(chat.phoneUnread))chat.phoneUnread={};
       if(!Number.isFinite(Number(chat.phoneUnread[p.id])))chat.phoneUnread[p.id]=0;
     });
+
     if(!c.activePhoneContactId)c.activePhoneContactId=p.id;
     return p;
-  }
-
-  function samePhoneMessage(a,role,text){
-    return a && a.role===role && key(a.text)===key(text);
   }
 
   function addRecoveredText(contact,direction,text,sourceIndex=null){
@@ -135,10 +124,10 @@
     const ch=activeChat(),clean=String(text||"").trim();
     if(!contact||!clean)return false;
 
-    const role=String(direction||"").toUpperCase()==="OUT" ? "user" : "assistant";
+    const role=String(direction||"").toUpperCase()==="OUT"?"user":"assistant";
     const thread=ch.phoneThreads[contact.id]||(ch.phoneThreads[contact.id]=[]);
 
-    if(thread.some(m=>samePhoneMessage(m,role,clean)))return false;
+    if(thread.some(m=>m.role===role&&key(m.text)===key(clean)))return false;
 
     thread.push({
       id:uid(),
@@ -157,143 +146,276 @@
     return true;
   }
 
-  function parseRecovery(raw){
-    const contacts=[];
-    const texts=[];
-
-    String(raw||"").split(/\r?\n/).forEach(line=>{
-      const t=line.trim();
-      if(!t || /^NONE$/i.test(t))return;
-
-      if(/^CONTACT\|/i.test(t)){
-        const parts=t.split("|").slice(1);
-        const name=String(parts.shift()||"").trim();
-        const relationship=parts.join("|").trim();
-        if(name)contacts.push({name,relationship});
-        return;
-      }
-
-      if(/^TEXT\|/i.test(t)){
-        const parts=t.split("|").slice(1);
-        const index=Number(parts.shift());
-        const direction=String(parts.shift()||"").trim().toUpperCase();
-        const name=String(parts.shift()||"").trim();
-        const text=parts.join("|").trim();
-        if((direction==="IN"||direction==="OUT") && name && text){
-          texts.push({index:Number.isFinite(index)?index:999999,direction,name,text});
-        }
-      }
-    });
-
-    texts.sort((a,b)=>a.index-b.index);
-    return {contacts,texts};
+  function cleanNameCandidate(name){
+    let n=String(name||"").trim()
+      .replace(/^[“"'*_\s]+|[“”"'*_,.!?:;\s]+$/g,"")
+      .replace(/\s+/g," ");
+    if(!n||n.length>60)return "";
+    const bad=/^(he|she|they|his|her|their|someone|somebody|the man|the woman|phone|message|text|amanda|you|user|protagonist)$/i;
+    if(bad.test(n))return "";
+    return n;
   }
 
-  /* ---------- SMART RECOVERY: CONTACTS + INCOMING + OUTGOING ---------- */
+  /*
+    LOCAL first pass:
+    Pull obvious named senders/recipients from phrases such as:
+    "Derek texted her", "Derek sent Amanda a message",
+    "Amanda texted Derek", "she sent Derek a text".
+    This creates the contact BEFORE model extraction so old messages are not
+    skipped just because the contact didn't already exist.
+  */
+  function localContactCandidates(messages){
+    const out=new Map();
+    const remember=(name,relationship="Story contact")=>{
+      const n=cleanNameCandidate(name);
+      if(!n)return;
+      const k=key(n);
+      if(!out.has(k))out.set(k,{name:n,relationship});
+    };
+
+    const name="([A-Z][A-Za-z'’-]{1,30}(?:\\s+[A-Z][A-Za-z'’-]{1,30})?)";
+    const patterns=[
+      new RegExp("\\b"+name+"\\s+(?:texted|messaged|DM(?:'d|ed)?|sent\\s+(?:her|him|them|Amanda|the protagonist)\\s+(?:a\\s+)?(?:text|message))\\b","g"),
+      new RegExp("\\b(?:Amanda|she|the protagonist)\\s+(?:texted|messaged|DM(?:'d|ed)?|sent)\\s+"+name+"\\b","g"),
+      new RegExp("\\b(?:text|message)\\s+from\\s+"+name+"\\b","g"),
+      new RegExp("\\b"+name+"['’]s\\s+(?:text|message)\\b","g")
+    ];
+
+    messages.forEach(m=>{
+      const t=String(m?.text||"");
+      patterns.forEach(re=>{
+        re.lastIndex=0;
+        let hit;
+        while((hit=re.exec(t)))remember(hit[1]);
+      });
+
+      /* Premiere/date language is strong enough to create a contact if named. */
+      const dateRe=new RegExp("\\b"+name+"\\b[^\\n.!?]{0,90}\\b(?:her date|his date|premiere date|took her to the premiere|asked her out|dinner date)\\b","gi");
+      let dm;
+      while((dm=dateRe.exec(t)))remember(dm[1],"Date / story contact");
+    });
+
+    return [...out.values()];
+  }
+
+  function parseContactPacket(raw){
+    const rows=[];
+    String(raw||"").split(/\r?\n/).forEach(line=>{
+      const t=line.trim();
+      if(!/^CONTACT\|/i.test(t))return;
+      const parts=t.split("|").slice(1);
+      const name=cleanNameCandidate(parts.shift());
+      const relationship=parts.join("|").trim();
+      if(name)rows.push({name,relationship});
+    });
+    return rows;
+  }
+
+  function parseTextPacket(raw){
+    const rows=[];
+    String(raw||"").split(/\r?\n/).forEach(line=>{
+      const t=line.trim();
+      if(!/^TEXT\|/i.test(t))return;
+      const parts=t.split("|").slice(1);
+      const index=Number(parts.shift());
+      const direction=String(parts.shift()||"").trim().toUpperCase();
+      const name=cleanNameCandidate(parts.shift());
+      const text=parts.join("|").trim();
+      if((direction==="IN"||direction==="OUT")&&name&&text){
+        rows.push({index:Number.isFinite(index)?index:999999,direction,name,text});
+      }
+    });
+    rows.sort((a,b)=>a.index-b.index);
+    return rows;
+  }
+
+  function chunks(arr,size=36,overlap=4){
+    const out=[];
+    if(!arr.length)return out;
+    let i=0;
+    while(i<arr.length){
+      out.push({start:i,items:arr.slice(i,i+size)});
+      if(i+size>=arr.length)break;
+      i+=Math.max(1,size-overlap);
+    }
+    return out;
+  }
+
+  function transcriptChunk(part){
+    return part.items.map((m,j)=>
+      `[${part.start+j+1}] ${m.role==="user"?"PROTAGONIST":"CHARACTER/WORLD"}: ${m.text}`
+    ).join("\n\n");
+  }
+
+  async function modelFindContacts(allMessages,status){
+    const found=[];
+    const parts=chunks(allMessages,40,4);
+
+    for(let i=0;i<parts.length;i++){
+      if(status)status.textContent=`Finding story contacts… ${i+1}/${parts.length}`;
+
+      const prompt=`STORY CONTACT RECOVERY
+
+Read this fictional RP excerpt and identify ONLY explicitly named people who clearly belong in the protagonist's phone.
+
+Qualifying examples:
+- a named date
+- a named friend/family member/coworker
+- a named person who actually sent or received a text/message
+- a named recurring social contact
+
+Important:
+- If Derek is explicitly the protagonist's premiere date, asked her to dinner, or sent her a text, Derek qualifies.
+- Do not invent surnames.
+- Do not add unnamed roles ("the actor", "the waiter", "security").
+- Do not add places, organizations, objects, or supernatural concepts.
+- Do not add the protagonist herself.
+
+Return ONLY:
+CONTACT|Exact Name|short relationship/role
+
+If none qualify:
+NONE
+
+EXCERPT:
+${transcriptChunk(parts[i])}`;
+
+      const raw=await openRouterRequest([
+        {role:"system",content:"Strict fictional contact extractor. Return CONTACT lines or NONE only."},
+        {role:"user",content:prompt}
+      ],650,0.05);
+
+      found.push(...parseContactPacket(raw));
+    }
+    return found;
+  }
+
+  async function modelFindTexts(allMessages,status){
+    const rows=[];
+    const c=activeCharacter();
+    const parts=chunks(allMessages,32,4);
+
+    for(let i=0;i<parts.length;i++){
+      if(status)status.textContent=`Recovering text history… ${i+1}/${parts.length}`;
+
+      const roster=(c.phoneContacts||[])
+        .map(p=>`${p.name||p.displayName}${p.relationship?` — ${p.relationship}`:""}`)
+        .join("\n") || "(none)";
+
+      const prompt=`PHONE MESSAGE HISTORY RECOVERY
+
+Known story contacts:
+${roster}
+
+Read BOTH protagonist posts and character/world posts.
+
+Extract every phone/text/SMS/DM message that was ACTUALLY SENT in this excerpt, in BOTH directions.
+
+Direction:
+IN = named contact sent a message to the protagonist.
+OUT = protagonist sent a message to the named contact.
+
+Rules:
+- Spoken dialogue is NOT a text.
+- Thoughts are NOT texts.
+- Unsent drafts are NOT texts.
+- Simply checking/holding a phone is NOT a text.
+- Preserve actual wording as closely as possible.
+- If exact wording is absent but the RP explicitly states a sent message's content in a clear paraphrase, use that clear content; do not invent details.
+- If a named sender/recipient is clearly present but missing from Known story contacts, you may still use their exact name.
+- Keep separate texts as separate lines.
+- Use the excerpt's bracketed transcript number.
+
+Return ONLY:
+TEXT|transcript number|IN|Exact Name|message content
+TEXT|transcript number|OUT|Exact Name|message content
+
+If none:
+NONE
+
+EXCERPT:
+${transcriptChunk(parts[i])}`;
+
+      const raw=await openRouterRequest([
+        {role:"system",content:"Strict fictional phone-history extractor. Return TEXT lines or NONE only. Never invent a sender, recipient, or message."},
+        {role:"user",content:prompt}
+      ],900,0.05);
+
+      rows.push(...parseTextPacket(raw));
+    }
+    return rows;
+  }
+
   async function recoverRpPhoneHistory(){
     ensurePhoneData();
     const c=activeCharacter(),ch=activeChat();
     const status=document.getElementById("rpPhoneSyncStatus");
 
-    const recent=(ch.messages||[])
-      .filter(m=>(m.role==="assistant"||m.role==="user") && String(m.text||"").trim())
-      .slice(-100);
+    const all=(ch.messages||[])
+      .filter(m=>(m.role==="assistant"||m.role==="user")&&String(m.text||"").trim());
 
-    if(!recent.length){
+    if(!all.length){
       if(status)status.textContent="No RP messages are available to scan.";
       return;
     }
 
-    const existing=(c.phoneContacts||[])
-      .map(p=>`${p.name||p.displayName}${p.relationship?` — ${p.relationship}`:""}`)
-      .join("\n") || "(none yet)";
-
-    const transcript=recent.map((m,i)=>
-      `[${i+1}] ${m.role==="user"?"PROTAGONIST":"CHARACTER/WORLD"}: ${m.text}`
-    ).join("\n\n");
-
     const btn=document.getElementById("rpPhoneSyncBtn");
-    if(btn){btn.disabled=true;btn.textContent="Scanning…"}
-    if(status)status.textContent=`Scanning ${recent.length} RP posts for contacts and sent texts…`;
-
-    const prompt=`MAIN-RP PHONE HISTORY RECOVERY
-
-Existing phone contacts:
-${existing}
-
-Read BOTH protagonist posts and character/world posts.
-
-Your job has TWO parts:
-
-1. CONTACTS
-Identify explicitly named people who clearly belong in the protagonist's phone because the RP establishes a real personal connection or phone exchange.
-Examples: a date, friend, coworker, family member, romantic interest, or named person who actually texted/messaged the protagonist.
-Do NOT invent people.
-Do NOT add unnamed roles such as "waiter", "driver", "publicist", "actor", or "security."
-Do NOT add places, organizations, objects, or titles as people.
-If Derek is explicitly established in this transcript as the protagonist's premiere date or as someone who texted her, he should be a contact.
-
-2. TEXT HISTORY
-Extract EVERY text/SMS/phone-message exchange that actually occurred in the RP, in BOTH directions:
-- IN = contact sent a text to the protagonist.
-- OUT = protagonist sent a text to that contact.
-
-Spoken dialogue is NOT a text.
-Thoughts are NOT texts.
-An unsent draft is NOT a text.
-Simply holding/checking a phone is NOT a text.
-Do not invent missing message content.
-If the RP gives the exact or clearly paraphrased content of an actually sent message, preserve it as closely as possible.
-If one person sends three separate texts, return three TEXT lines.
-Use the transcript number where the event appears so chronology can be preserved.
-
-Return ONLY lines in these exact formats:
-
-CONTACT|Exact Name|short relationship/role
-TEXT|transcript number|IN|Exact Name|message content
-TEXT|transcript number|OUT|Exact Name|message content
-
-If no contacts or texts qualify, return:
-NONE
-
-RP TRANSCRIPT:
-${transcript}`;
+    if(btn){btn.disabled=true;btn.textContent="Deep scanning…"}
+    if(status)status.textContent=`Scanning the full ${all.length}-post timeline…`;
 
     try{
-      const raw=await openRouterRequest([
-        {role:"system",content:"You are a strict fictional continuity extractor. Return only CONTACT|... and TEXT|... lines or NONE. Never invent names or message content."},
-        {role:"user",content:prompt}
-      ],1400,0.05);
-
-      const packet=parseRecovery(raw);
       let contactsAdded=0,textsAdded=0;
 
-      packet.contacts.forEach(row=>{
+      /* PASS 1: deterministic local contact discovery */
+      localContactCandidates(all).forEach(row=>{
         const existed=!!findPhoneContact(row.name);
         const p=makePhoneContact(row.name,row.relationship);
-        if(p && !existed)contactsAdded++;
+        if(p&&!existed)contactsAdded++;
       });
+      saveVault();
 
-      packet.texts.forEach(row=>{
+      /* PASS 2: AI contact discovery across the ENTIRE chat, chunked */
+      const discovered=await modelFindContacts(all,status);
+      discovered.forEach(row=>{
+        const existed=!!findPhoneContact(row.name);
+        const p=makePhoneContact(row.name,row.relationship);
+        if(p&&!existed)contactsAdded++;
+      });
+      saveVault();
+
+      /* PASS 3: now that Derek/etc. exist in the roster, recover texts */
+      const texts=await modelFindTexts(all,status);
+      texts.forEach(row=>{
         let p=findPhoneContact(row.name);
         if(!p){
           p=makePhoneContact(row.name,"Story contact");
           if(p)contactsAdded++;
         }
-        if(p && addRecoveredText(p,row.direction,row.text,row.index))textsAdded++;
+        if(p&&addRecoveredText(p,row.direction,row.text,row.index))textsAdded++;
       });
 
-      /* Stable chronological ordering for recovered events. Existing native
-         phone messages without a source index stay in their existing order. */
+      /* De-dupe contact names accidentally found in overlapping chunks. */
+      const seen=new Map(),duplicates=[];
       (c.phoneContacts||[]).forEach(p=>{
-        const thread=ch.phoneThreads?.[p.id];
-        if(!Array.isArray(thread)||thread.length<2)return;
-        const indexed=thread.filter(m=>Number.isFinite(Number(m.sourceIndex)));
-        if(!indexed.length)return;
-        const unindexed=thread.filter(m=>!Number.isFinite(Number(m.sourceIndex)));
-        indexed.sort((a,b)=>Number(a.sourceIndex)-Number(b.sourceIndex));
-        ch.phoneThreads[p.id]=[...unindexed,...indexed];
+        const k=key(p.name||p.displayName);
+        if(!k)return;
+        if(!seen.has(k)){seen.set(k,p);return}
+        const keep=seen.get(k),drop=p;
+        const keepThread=ch.phoneThreads?.[keep.id]||(ch.phoneThreads[keep.id]=[]);
+        const dropThread=ch.phoneThreads?.[drop.id]||[];
+        dropThread.forEach(m=>{
+          if(!keepThread.some(x=>x.role===m.role&&key(x.text)===key(m.text)))keepThread.push(m);
+        });
+        duplicates.push(drop.id);
       });
+      if(duplicates.length){
+        const ids=new Set(duplicates);
+        c.phoneContacts=c.phoneContacts.filter(p=>!ids.has(p.id));
+        duplicates.forEach(id=>{
+          if(ch.phoneThreads)delete ch.phoneThreads[id];
+          if(ch.phoneUnread)delete ch.phoneUnread[id];
+        });
+      }
 
       saveVault();
       renderAll();
@@ -304,17 +426,17 @@ ${transcript}`;
 
       if(status){
         status.textContent=bits.length
-          ?`Imported ${bits.join(" and ")} from the RP. Incoming AND outgoing texts are now supported.`
-          :"The scan completed, but everything it found was already in Phone or no explicit sent texts were present.";
+          ?`Deep sync imported ${bits.join(" and ")} from the full timeline.`
+          :"Deep sync finished. Everything found was already imported, or no explicit sent texts were present.";
       }
     }catch(err){
       if(status)status.textContent=`Phone sync failed: ${err?.message||String(err)}`;
     }finally{
-      if(btn){btn.disabled=false;btn.textContent="Sync Contacts + RP Texts"}
+      if(btn){btn.disabled=false;btn.textContent="Deep Sync Contacts + RP Texts"}
     }
   }
 
-  /* ---------- LOCAL FUTURE OUTGOING-TEXT BRIDGE ---------- */
+  /* ---------- FUTURE OUTGOING TEXT BRIDGE ---------- */
   function quoteParts(text){
     const out=[];
     const re=/["“]([^"”]{1,1000})["”]/g;
@@ -336,21 +458,18 @@ ${transcript}`;
 
     const quotes=quoteParts(text);
     if(!quotes.length)return null;
-
     return {contact:mentioned[0],texts:quotes};
   }
 
   function patchFutureOutgoingTexts(){
     const form=document.getElementById("chatForm");
-    if(!form || form.dataset.phoneOutBridge==="1")return;
+    if(!form||form.dataset.phoneOutBridge==="1")return;
     form.dataset.phoneOutBridge="1";
 
     form.addEventListener("submit",()=>{
       const input=document.getElementById("messageInput");
-      const raw=input?.value||"";
-      const event=obviousOutgoingTextEvent(raw);
+      const event=obviousOutgoingTextEvent(input?.value||"");
       if(!event)return;
-
       event.texts.forEach(t=>addRecoveredText(event.contact,"OUT",t,null));
       saveVault();
     },true);
@@ -359,47 +478,47 @@ ${transcript}`;
   /* ---------- UI ---------- */
   function injectPhoneRecoveryControls(){
     const phoneView=document.querySelector('[data-view="phone"]');
-    if(phoneView && !document.getElementById("rpPhoneSyncPanel")){
-      const shell=phoneView.querySelector(".phone-shell") || phoneView.querySelector(".panel") || phoneView;
+
+    if(phoneView&&!document.getElementById("rpPhoneSyncPanel")){
+      const shell=phoneView.querySelector(".phone-shell")||phoneView.querySelector(".panel")||phoneView;
       const panel=document.createElement("div");
       panel.id="rpPhoneSyncPanel";
       panel.className="ambient-text-controls rp-phone-sync-panel";
       panel.innerHTML=`
         <div>
-          <strong>RP → Phone Sync</strong>
-          <div class="hint mini-hint">Find story contacts and copy texts actually sent in the main RP into the correct phone thread — incoming and outgoing.</div>
+          <strong>RP → Phone Deep Sync</strong>
+          <div class="hint mini-hint">Scans the full active timeline, creates missing named story contacts, then imports incoming and outgoing texts.</div>
         </div>
-        <button id="rpPhoneSyncBtn" class="ghost small" type="button">Sync Contacts + RP Texts</button>
+        <button id="rpPhoneSyncBtn" class="ghost small" type="button">Deep Sync Contacts + RP Texts</button>
         <div id="rpPhoneSyncStatus" class="test-result"></div>`;
       shell.insertBefore(panel,shell.firstChild);
     }
 
-    /* Replace the old listener/button if an earlier runtime patch created it. */
     const oldBtn=document.getElementById("rpPhoneSyncBtn");
-    if(oldBtn && oldBtn.dataset.smartSync!=="1"){
+    if(oldBtn&&oldBtn.dataset.deepSync!=="1"){
       const fresh=oldBtn.cloneNode(true);
-      fresh.dataset.smartSync="1";
-      fresh.textContent="Sync Contacts + RP Texts";
+      fresh.dataset.deepSync="1";
+      fresh.textContent="Deep Sync Contacts + RP Texts";
       oldBtn.parentNode.replaceChild(fresh,oldBtn);
       fresh.addEventListener("click",recoverRpPhoneHistory);
     }
 
     const settingsPanel=document.querySelector('[data-view="settings"] .panel');
-    if(settingsPanel && !document.getElementById("rpPhoneSyncSettingsPanel")){
+    if(settingsPanel&&!document.getElementById("rpPhoneSyncSettingsPanel")){
       const box=document.createElement("div");
       box.id="rpPhoneSyncSettingsPanel";
       box.className="memory-compact-card";
       box.innerHTML=`
-        <h2 class="subhead">RP → Phone Sync</h2>
-        <p class="hint">Recover named story contacts plus incoming and outgoing text messages from the main RP.</p>
-        <button id="rpPhoneSyncSettingsBtn" class="ghost small" type="button">Sync Contacts + RP Texts</button>`;
+        <h2 class="subhead">RP → Phone Deep Sync</h2>
+        <p class="hint">Scan the full active RP for missing contacts and phone history.</p>
+        <button id="rpPhoneSyncSettingsBtn" class="ghost small" type="button">Deep Sync Contacts + RP Texts</button>`;
       settingsPanel.appendChild(box);
     }
 
     const settingsBtn=document.getElementById("rpPhoneSyncSettingsBtn");
-    if(settingsBtn && settingsBtn.dataset.smartSync!=="1"){
-      settingsBtn.dataset.smartSync="1";
-      settingsBtn.textContent="Sync Contacts + RP Texts";
+    if(settingsBtn&&settingsBtn.dataset.deepSync!=="1"){
+      settingsBtn.dataset.deepSync="1";
+      settingsBtn.textContent="Deep Sync Contacts + RP Texts";
       settingsBtn.addEventListener("click",()=>{
         selectTab("phone");
         setTimeout(()=>document.getElementById("rpPhoneSyncBtn")?.click(),80);
