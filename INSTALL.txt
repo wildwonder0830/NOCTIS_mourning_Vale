@@ -1,51 +1,27 @@
-NOCTIS v0.12.1 — FULL CHARACTER JSON IMPORT
+NOCTIS v0.12.2 — MAIN RP → PHONE BRIDGE
 
-This fixes the character-card importer that was only bringing in the opening scene
-or otherwise dropping most of a JSON card.
+This fixes the Henry problem: the main RP could SAY he sent three texts, but the Phone database never received those messages.
 
-ROOT CAUSE
-The old generic Import handler did not understand Character Card V2 / Tavern-style
-character JSON. Worse, a direct character card with fields like name + personality
-could be mistaken for a PERSONA import.
+FUTURE TEXTS
+- Main-RP characters now emit hidden phone-event metadata when they actually send texts.
+- One sent text = one Phone bubble.
+- Three separate texts = three separate Phone bubbles.
+- The hidden metadata is removed before the RP is displayed.
+- The correct Phone thread gets an unread count.
+- No extra model request is needed for future texts.
 
-WHAT THIS FIX IMPORTS
-Character Card V2 and common JSON variants:
-- Name
-- Role / archetype
-- Personality
-- Description
-- Backstory / history / biography
-- Voice / speech style
-- Example dialogue
-- Scenario / first scene
-- Greeting / first_mes / opening message
-- System prompt / response directives
-- Post-history instructions
-- Canon / continuity notes
-- Tags / creator notes
-- Lore / lorebook / character_book entries
-- Structured transcript/history arrays
-- Native Noctis character cards with ALL chats/timelines, not just the first one
-
-IMPORT BEHAVIOR
-- Character JSON populates the CURRENT active Character card.
-- Existing RP transcript is preserved.
-- If the imported file contains transcript messages, Noctis asks before appending.
-- If it contains an opening greeting, Noctis asks before adding it when the timeline
-  already has messages.
-- Full Noctis vault/sync backups still import as full vaults.
-- Persona JSON still imports into the Persona slot.
+RECOVER THE 3 HENRY TEXTS THAT ALREADY HAPPENED
+- Open Henry's RP.
+- Make sure Henry exists in Phone Contacts.
+- Go to Phone → Contacts.
+- Tap "Recover RP Texts".
+- It scans the last 40 assistant RP posts and copies real sent texts into the correct thread.
+- This recovery scan uses one model request.
 
 INSTALL
 1. Make a Noctis Backup.
-2. Replace:
-   - index.html
-3. ADD:
-   - import-fix.js
-4. Keep every other Noctis file exactly as-is.
-5. Fully close/reopen Noctis after GitHub Pages updates.
-6. Build badge should read v0.12.1.
-7. Open the Character card you want to populate, then use the normal Import button
-   and choose the JSON file again.
-
-After import, Noctis shows a summary of exactly which sections it found and imported.
+2. Replace index.html.
+3. Add phone-rp-sync.js.
+4. Keep every other existing file.
+5. Fully close/reopen Noctis.
+6. Badge should say v0.12.2.
