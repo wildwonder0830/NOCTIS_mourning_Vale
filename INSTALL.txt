@@ -1,67 +1,51 @@
-NOCTIS v0.13.0 — STRUCTURED PHYSICAL CANON
+NOCTIS v0.13.3 — MULTI-DEVICE MERGE
 
-This version separates stable physical facts from the large Appearance/Body prose box.
+This fixes the exact situation where two devices have diverged.
 
-NEW STRUCTURED FIELDS — CHARACTER
-- Species / Nature
-- Height
-- Weight
-- Build / Body Type
-- Eye Color
-- Hair Color
-- Hair Length / Style
-- Skin Tone
-- Distinguishing Features
-- Apparent Age
-- Actual Age
-- Current Form
+YOUR CURRENT CASE
+- iPad Jesse: 143 chat messages
+- iPhone Jesse: 119 chat messages
+- Henry was started on the iPhone, so Henry has newer iPhone-only history
 
-NEW STRUCTURED FIELDS — PERSONA
-- Height
-- Weight
-- Build / Body Type
-- Eye Color
-- Hair Color
-- Hair Length / Style
-- Skin Tone
-- Distinguishing Features
-- Apparent Age
-- Actual Age
-- Current Form
+The old Sync importer REPLACES the current vault. That is unsafe when BOTH devices have unique newer data.
 
-Existing Species / Nature remains in the Persona sheet.
+NEW BUTTON
+Sync → Merge Vault File
 
-WHY
-Structured facts are now appended to the model prompt as PHYSICAL CANON.
-If prose and a structured fact conflict, the structured fact wins.
-That should greatly reduce drift such as 4'11" Amanda suddenly being the same height as Henry.
+Merge keeps unique information from both sides instead of replacing one with the other.
 
-JSON
-Persona exports now include all structured physical fields and targetSlot.
-Persona imports accept those fields.
-Character-card JSON imports recognize common keys such as:
-height, weight, build/body_type, eyeColor/eye_color/eyes, hairColor,
-hairStyle, skinTone/complexion, distinguishingFeatures, apparentAge,
-actualAge, currentForm, and species/race/nature.
+REPAIR STEPS
 
-INCLUDED
-An updated Amanda Rodriguez Persona 2 JSON is included with:
-- targetSlot 2
-- Height 4'11"
-- petite voluptuous hourglass build
-- hazel eyes
-- dark hair
-- very fair skin
-- apparent age 24
-- true age deliberately unspecified
-- immortal witch
+1. BACK UP BOTH DEVICES FIRST.
+   iPad: Sync → Share Current Vault → save the iPad file.
+   iPhone: Sync → Share Current Vault → save the iPhone file.
+
+2. Use the iPad as the temporary master because it has the longer Jesse history.
+
+3. Install this v0.13.3 patch on the iPad.
+
+4. On the iPad:
+   Sync → Merge Vault File → choose the iPHONE vault file.
+
+5. Verify:
+   - Jesse should keep all unique messages. If the phone's 119 are the same first 119 of the iPad's 143, Jesse remains 143.
+   - Henry and his iPhone-only history should now appear on the iPad.
+   - Phone threads, contacts, lore, personas, social posts, milestones, etc. are also merged.
+
+6. On the iPad, Sync → Share Current Vault again.
+   That NEW export is now the merged master.
+
+7. On the iPhone, use Import Vault Here with the NEW merged master file.
+   Now both devices start from the same vault again.
+
+AFTER THIS
+If only one device has new work, ordinary Import Vault Here is fine.
+If BOTH devices have new work, use Merge Vault File before replacing either copy.
 
 INSTALL
-1. Replace index.html.
-2. Replace build-version.js.
-3. Replace runtime-fixes.js.
-4. Replace import-fix.js.
-5. Add physical-fields.js.
-6. Keep all other files.
-7. Fully close/reopen Noctis.
-8. Badge should stay v0.13.0 everywhere.
+- Replace index.html
+- Replace build-version.js
+- Add merge-sync.js
+- Keep every other file exactly as-is
+- Fully close/reopen Noctis
+- Badge should read v0.13.3
