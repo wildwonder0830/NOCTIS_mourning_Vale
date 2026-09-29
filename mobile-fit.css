@@ -1,4 +1,4 @@
-/* Noctis Mourning Vale — Mobile Fit Patch v0.13.4
+/* Noctis Mourning Vale — Mobile Fit Patch v0.13.5
    Purpose: make the existing app fit and behave cleanly on iPhone/iPad
    without changing desktop behavior or app logic.
 */
@@ -22,7 +22,7 @@ html {
 body {
   width: 100%;
   max-width: 100%;
-  min-height: 100dvh;
+  min-height: 100svh;
   margin: 0;
   overflow-x: hidden;
   overscroll-behavior-x: none;
@@ -115,9 +115,9 @@ textarea {
 
   /* Horizontal tab rail instead of crushed tabs */
   .tabs {
-    position: sticky;
-    top: 0;
-    z-index: 50;
+    position: static;
+    top: auto;
+    z-index: auto;
     display: flex;
     width: 100%;
     max-width: 100vw;
@@ -224,28 +224,28 @@ textarea {
 
   /* Chat: use the real visible iPhone viewport */
   .view[data-view="chat"] {
-    min-height: calc(100dvh - 120px);
+    min-height: calc(100svh - 120px);
   }
 
   .chat-shell {
-    min-height: calc(100dvh - 120px);
+    min-height: calc(100svh - 120px);
     display: flex;
     flex-direction: column;
   }
 
   .messages-wrap {
     flex: 1 1 auto;
-    min-height: 32dvh;
-    overflow: hidden;
+    min-height: 0;
+    overflow: visible;
   }
 
   .messages {
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: auto;
+    overscroll-behavior: auto;
   }
 
   .messages > * {
@@ -255,9 +255,9 @@ textarea {
   }
 
   .composer-dock {
-    position: sticky;
-    bottom: 0;
-    z-index: 40;
+    position: static;
+    bottom: auto;
+    z-index: auto;
     padding-bottom: calc(8px + var(--noctis-safe-bottom));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -330,7 +330,7 @@ textarea {
 
   .modal-card,
   .sync-card {
-    max-height: calc(100dvh - var(--noctis-safe-top) - var(--noctis-safe-bottom) - 20px);
+    max-height: calc(100svh - var(--noctis-safe-top) - var(--noctis-safe-bottom) - 20px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
@@ -390,10 +390,42 @@ textarea {
 
   .view[data-view="chat"],
   .chat-shell {
-    min-height: calc(100dvh - 82px);
+    min-height: calc(100svh - 82px);
   }
 
   #messageInput {
     max-height: 24dvh;
+  }
+}
+
+
+/* v0.13.5 iPhone jump-prevention */
+@media (max-width: 768px) {
+  html,
+  body,
+  .app,
+  .view,
+  .chat-shell,
+  .messages-wrap,
+  .messages,
+  .composer-dock {
+    overflow-anchor: none;
+  }
+
+  .tabs,
+  .composer-dock {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .tabs.hidden,
+  .tabs.is-hidden,
+  .topbar.hidden,
+  .topbar.is-hidden,
+  .composer-dock.hidden,
+  .composer-dock.is-hidden {
+    transform: none !important;
+    opacity: 1 !important;
+    visibility: visible !important;
   }
 }
