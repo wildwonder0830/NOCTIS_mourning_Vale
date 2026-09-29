@@ -1,0 +1,399 @@
+/* Noctis Mourning Vale — Mobile Fit Patch v0.13.4
+   Purpose: make the existing app fit and behave cleanly on iPhone/iPad
+   without changing desktop behavior or app logic.
+*/
+
+:root {
+  --noctis-safe-top: env(safe-area-inset-top, 0px);
+  --noctis-safe-right: env(safe-area-inset-right, 0px);
+  --noctis-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --noctis-safe-left: env(safe-area-inset-left, 0px);
+}
+
+html {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+textarea,
+select,
+button {
+  max-width: 100%;
+  font: inherit;
+}
+
+textarea {
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Prevent iOS auto-zooming form fields */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  body {
+    padding-left: var(--noctis-safe-left);
+    padding-right: var(--noctis-safe-right);
+  }
+
+  .topbar {
+    width: 100%;
+    padding:
+      calc(10px + var(--noctis-safe-top))
+      12px
+      10px;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .topbar > div:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .topbar h1 {
+    font-size: clamp(1.2rem, 6vw, 1.65rem);
+    line-height: 1.1;
+    margin-bottom: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .top-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .top-actions button,
+  .top-actions .file-label {
+    min-height: 40px;
+    padding: 8px 10px;
+  }
+
+  /* Horizontal tab rail instead of crushed tabs */
+  .tabs {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs .tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 9px 12px;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 8px calc(14px + var(--noctis-safe-bottom));
+  }
+
+  .view,
+  .panel,
+  .chat-shell,
+  .chat-manager,
+  .messages-wrap,
+  .composer-dock,
+  .composer,
+  .memory-compact-card,
+  .test-card,
+  .sync-card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .panel,
+  .chat-shell {
+    border-radius: 14px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .section-title-row,
+  .chat-header,
+  .chat-toolbar {
+    gap: 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .section-title-row > *,
+  .chat-header > *,
+  .chat-toolbar > * {
+    max-width: 100%;
+  }
+
+  .character-grid,
+  .field-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .persona-slot-row,
+  .persona-file-actions,
+  .button-row,
+  .quick-actions,
+  .sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .persona-slot-row > *,
+  .persona-file-actions > *,
+  .button-row > *,
+  .quick-actions > *,
+  .sync-actions > * {
+    flex: 1 1 auto;
+  }
+
+  button,
+  .ghost,
+  .send,
+  .file-label,
+  select {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  input,
+  textarea,
+  select {
+    width: 100%;
+  }
+
+  /* Chat: use the real visible iPhone viewport */
+  .view[data-view="chat"] {
+    min-height: calc(100dvh - 120px);
+  }
+
+  .chat-shell {
+    min-height: calc(100dvh - 120px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .messages-wrap {
+    flex: 1 1 auto;
+    min-height: 32dvh;
+    overflow: hidden;
+  }
+
+  .messages {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .messages > * {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .composer-dock {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    padding-bottom: calc(8px + var(--noctis-safe-bottom));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 8px;
+  }
+
+  #messageInput {
+    width: 100%;
+    min-height: 46px;
+    max-height: 34dvh;
+    resize: vertical;
+  }
+
+  #sendBtn {
+    min-width: 64px;
+    min-height: 46px;
+  }
+
+  .quick-actions {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .quick-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .quick-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .chat-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chat-actions > * {
+    min-height: 40px;
+  }
+
+  .chat-name,
+  .chat-subtitle,
+  .status,
+  .persona-badge,
+  .hint,
+  label,
+  p,
+  h1,
+  h2,
+  h3 {
+    overflow-wrap: anywhere;
+  }
+
+  .modal-backdrop {
+    padding:
+      calc(10px + var(--noctis-safe-top))
+      10px
+      calc(10px + var(--noctis-safe-bottom));
+  }
+
+  .modal-card,
+  .sync-card {
+    max-height: calc(100dvh - var(--noctis-safe-top) - var(--noctis-safe-bottom) - 20px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Extra-small phones */
+@media (max-width: 390px) {
+  .topbar {
+    flex-direction: column;
+  }
+
+  .top-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .top-actions button,
+  .top-actions .file-label {
+    flex: 1 1 30%;
+    text-align: center;
+  }
+
+  .app {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .panel {
+    padding: 10px;
+  }
+
+  .composer {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #sendBtn {
+    width: 100%;
+  }
+}
+
+/* Landscape phones: preserve usable chat space */
+@media (max-height: 500px) and (orientation: landscape) {
+  .topbar h1 {
+    display: none;
+  }
+
+  .topbar {
+    padding-top: calc(4px + var(--noctis-safe-top));
+    padding-bottom: 4px;
+  }
+
+  .tabs .tab {
+    min-height: 38px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .view[data-view="chat"],
+  .chat-shell {
+    min-height: calc(100dvh - 82px);
+  }
+
+  #messageInput {
+    max-height: 24dvh;
+  }
+}
