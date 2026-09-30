@@ -1,0 +1,24 @@
+NOCTIS v0.15.1 — Character Replacement Pack
+
+UPLOAD TO REPO ROOT:
+- index.html (replace)
+- build-version.js (replace)
+- character-replacement.js (new)
+
+THEN, AFTER GITHUB PAGES SHOWS v0.15.1:
+1. Make a fresh Backup first.
+2. Use the top-bar Import control.
+3. Import Jesse's replacement JSON. Confirm the replacement.
+4. Repeat for Henry Craven and Dante Verro.
+
+The replacement importer preserves the matched character's:
+- stable ID
+- all chats/timelines
+- all transcript messages
+- phone contacts/history
+- active chat selection
+- creation timestamp
+
+It replaces the character definition, lore, structured physical fields, and detailed v0.15 profile sheet.
+
+Unknown/unestablished profile details are intentionally left blank rather than invented.
