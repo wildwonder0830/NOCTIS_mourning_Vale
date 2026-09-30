@@ -1,16 +1,76 @@
-/* Noctis Mourning Vale v0.15.3 — Single Build Version Authority */
+/* Noctis Mourning Vale v0.15.4 — Build Authority + Relationship Milestone Loader */
 (() => {
-  const CURRENT_BUILD = "0.15.3";
+  'use strict';
+
+  const CURRENT_BUILD = "0.15.4";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
-  function forceBuildBadge(){
-    const badge=document.getElementById("buildBadge");
-    if(!badge)return;
-    const wanted="v"+CURRENT_BUILD;
-    if(badge.textContent!==wanted)badge.textContent=wanted;
+
+  function forceBuildBadge() {
+    const badge = document.getElementById("buildBadge");
+    if (!badge) return;
+    const wanted = "v" + CURRENT_BUILD;
+    if (badge.textContent !== wanted) badge.textContent = wanted;
   }
-  forceBuildBadge();
-  const badge=document.getElementById("buildBadge");
-  if(badge)new MutationObserver(forceBuildBadge).observe(badge,{childList:true,characterData:true,subtree:true});
-  document.addEventListener("click",e=>{if(e.target?.closest?.(".tab"))requestAnimationFrame(forceBuildBadge)});
-  window.addEventListener("pageshow",forceBuildBadge);
+
+  function removeSyncUI() {
+    ["syncBtn", "syncModal", "syncImportInput"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    });
+  }
+
+  function loadRelationshipMilestones() {
+    if (window.NoctisRelationshipMilestones) return;
+
+    const existing = document.querySelector('script[data-noctis-relationship-milestones]');
+    if (existing) return;
+
+    const script = document.createElement("script");
+    script.src = "relationship-milestones.js?v=1.1.0";
+    script.async = false;
+    script.dataset.noctisRelationshipMilestones = "1";
+
+    script.addEventListener("load", () => {
+      console.info("[Noctis] Relationship Milestones v1.1 loaded.");
+      removeSyncUI();
+    });
+
+    script.addEventListener("error", () => {
+      console.error("[Noctis] Could not load relationship-milestones.js");
+    });
+
+    document.body.appendChild(script);
+  }
+
+  function boot() {
+    forceBuildBadge();
+    removeSyncUI();
+    loadRelationshipMilestones();
+  }
+
+  boot();
+
+  const badge = document.getElementById("buildBadge");
+  if (badge) {
+    new MutationObserver(forceBuildBadge).observe(
+      badge,
+      { childList: true, characterData: true, subtree: true }
+    );
+  }
+
+  document.addEventListener("click", e => {
+    if (e.target?.closest?.(".tab")) {
+      requestAnimationFrame(() => {
+        forceBuildBadge();
+        removeSyncUI();
+      });
+    }
+  });
+
+  window.addEventListener("pageshow", boot);
+
+  new MutationObserver(() => {
+    forceBuildBadge();
+    removeSyncUI();
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();
