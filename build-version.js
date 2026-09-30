@@ -1,13 +1,15 @@
-/* Noctis Mourning Vale v0.13.3 — Single Build Version Authority */
+/* Noctis Mourning Vale v0.13.6 — Single Build Version Authority */
 (() => {
-  const CURRENT_BUILD = "0.13.3";
+  const CURRENT_BUILD = "0.13.6";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
+
   function forceBuildBadge(){
     const badge=document.getElementById("buildBadge");
     if(!badge)return;
     const wanted="v"+CURRENT_BUILD;
     if(badge.textContent!==wanted)badge.textContent=wanted;
   }
+
   forceBuildBadge();
   const badge=document.getElementById("buildBadge");
   if(badge)new MutationObserver(forceBuildBadge).observe(badge,{childList:true,characterData:true,subtree:true});
