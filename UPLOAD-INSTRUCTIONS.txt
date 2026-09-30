@@ -1,24 +1,17 @@
-NOCTIS v0.15.2 — COMPLETE PROFILE UI REPAIR
+NOCTIS v0.15.3 — LARGE COMPOSER PATCH
 
-Why this exists:
-The v0.15.1 index was already referencing the complete profile system, but these three required files were missing from the GitHub repo:
-- compatibility-core.js
-- profile-sheet.js
-- profile-sheet.css
+Upload/replace these three files in the repository root:
+1. index.html
+2. composer-accessibility.css
+3. build-version.js
 
-Upload/replace ALL FIVE files in this folder at the repository root:
-1. compatibility-core.js   (new/missing)
-2. profile-sheet.js        (new/missing)
-3. profile-sheet.css       (new/missing)
-4. index.html              (replace; cache-busts everything at v0.15.2)
-5. build-version.js        (replace; visible build authority v0.15.2)
+Changes:
+- Message input font: 20px desktop/iPad, 19px mobile
+- Message input minimum height: 150px desktop/iPad, 132px mobile
+- More padding and line spacing
+- Still vertically resizable
+- Larger max height for longer posts
+- On very narrow phones, Send moves underneath the input
+- Cache/build version bumped to v0.15.3
 
-Do NOT delete your other Noctis files.
-
-After GitHub Pages updates:
-- Refresh until the header says v0.15.2.
-- Open Dante. The Complete Character Profile should appear as searchable expandable sections with 403 optional fields.
-- Because Dante was already imported with the replacement JSON, his detailed profile data should already be present if that import succeeded. You should NOT need to re-import him just to make the fields appear.
-- Physical Canon remains compatible; the complete sheet mirrors the stable legacy fields.
-
-If Dante's profile sections appear but are blank, then re-import Dante's replacement JSON once. His chats/messages are preserved by the replacement importer.
+This does not change chats, characters, personas, backups, or model settings.

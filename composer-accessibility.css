@@ -1,0 +1,62 @@
+/* Noctis Mourning Vale v0.15.3 — Larger readable RP composer */
+
+#messageInput {
+  box-sizing: border-box !important;
+  width: 100% !important;
+  min-height: 150px !important;
+  max-height: 48vh !important;
+  padding: 16px 18px !important;
+  font-size: 20px !important;
+  line-height: 1.6 !important;
+  letter-spacing: 0.01em;
+  resize: vertical !important;
+  overflow-y: auto !important;
+  caret-color: var(--accent2);
+}
+
+#messageInput::placeholder {
+  font-size: 18px;
+  color: #a99fb3;
+  opacity: 1;
+}
+
+.composer-dock .composer {
+  align-items: stretch !important;
+}
+
+#sendBtn {
+  min-height: 72px !important;
+  align-self: end;
+}
+
+@media (max-width: 768px) {
+  #messageInput {
+    min-height: 132px !important;
+    max-height: 42dvh !important;
+    padding: 15px 16px !important;
+    font-size: 19px !important;
+    line-height: 1.58 !important;
+  }
+
+  #messageInput::placeholder {
+    font-size: 17px;
+  }
+
+  #sendBtn {
+    min-height: 64px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .composer-dock .composer {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "input"
+      "send"
+      "quick" !important;
+  }
+
+  #sendBtn {
+    width: 100% !important;
+  }
+}
