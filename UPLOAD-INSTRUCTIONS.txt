@@ -1,24 +1,24 @@
-NOCTIS v0.15.1 — Character Replacement Pack
+NOCTIS v0.15.2 — COMPLETE PROFILE UI REPAIR
 
-UPLOAD TO REPO ROOT:
-- index.html (replace)
-- build-version.js (replace)
-- character-replacement.js (new)
+Why this exists:
+The v0.15.1 index was already referencing the complete profile system, but these three required files were missing from the GitHub repo:
+- compatibility-core.js
+- profile-sheet.js
+- profile-sheet.css
 
-THEN, AFTER GITHUB PAGES SHOWS v0.15.1:
-1. Make a fresh Backup first.
-2. Use the top-bar Import control.
-3. Import Jesse's replacement JSON. Confirm the replacement.
-4. Repeat for Henry Craven and Dante Verro.
+Upload/replace ALL FIVE files in this folder at the repository root:
+1. compatibility-core.js   (new/missing)
+2. profile-sheet.js        (new/missing)
+3. profile-sheet.css       (new/missing)
+4. index.html              (replace; cache-busts everything at v0.15.2)
+5. build-version.js        (replace; visible build authority v0.15.2)
 
-The replacement importer preserves the matched character's:
-- stable ID
-- all chats/timelines
-- all transcript messages
-- phone contacts/history
-- active chat selection
-- creation timestamp
+Do NOT delete your other Noctis files.
 
-It replaces the character definition, lore, structured physical fields, and detailed v0.15 profile sheet.
+After GitHub Pages updates:
+- Refresh until the header says v0.15.2.
+- Open Dante. The Complete Character Profile should appear as searchable expandable sections with 403 optional fields.
+- Because Dante was already imported with the replacement JSON, his detailed profile data should already be present if that import succeeded. You should NOT need to re-import him just to make the fields appear.
+- Physical Canon remains compatible; the complete sheet mirrors the stable legacy fields.
 
-Unknown/unestablished profile details are intentionally left blank rather than invented.
+If Dante's profile sections appear but are blank, then re-import Dante's replacement JSON once. His chats/messages are preserved by the replacement importer.

@@ -1,0 +1,20 @@
+/* Noctis v0.15.0 — Complete Character / Persona Sheets */
+.complete-profile-sheet{margin:0 0 18px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(15,9,18,.55)}
+.profile-sheet-head{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+.profile-sheet-head h2{margin:.1rem 0 .35rem}
+.profile-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.profile-search{min-width:220px;max-width:360px}
+.profile-section{border-top:1px solid rgba(255,255,255,.08);padding:4px 0}
+.profile-section>summary{cursor:pointer;font-weight:700;padding:12px 4px;user-select:none}
+.profile-section>summary::marker{color:var(--accent,#c68ba9)}
+.profile-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:4px 2px 14px}
+.profile-field{display:flex;flex-direction:column;gap:5px;margin:0}
+.profile-field-label{font-size:.88rem;opacity:.9}
+.profile-field textarea{min-height:82px;resize:vertical}
+.profile-field[hidden],.profile-section[hidden]{display:none!important}
+.profile-sheet-superseded{display:none!important}
+@media(max-width:760px){
+  .profile-grid{grid-template-columns:1fr}
+  .profile-tools{width:100%}
+  .profile-search{width:100%;max-width:none;min-width:0}
+}

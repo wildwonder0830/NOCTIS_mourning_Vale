@@ -1,6 +1,6 @@
-/* Noctis Mourning Vale v0.15.1 — Single Build Version Authority */
+/* Noctis Mourning Vale v0.15.2 — Single Build Version Authority */
 (() => {
-  const CURRENT_BUILD = "0.15.1";
+  const CURRENT_BUILD = "0.15.2";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
   function forceBuildBadge(){
     const badge=document.getElementById("buildBadge");
