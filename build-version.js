@@ -1,8 +1,8 @@
-/* Noctis Mourning Vale v0.15.4 — Build Authority + Relationship Milestone Loader */
+/* Noctis Mourning Vale v0.15.5 — Build Authority + Relationship Milestone Sync Loader */
 (() => {
   'use strict';
 
-  const CURRENT_BUILD = "0.15.4";
+  const CURRENT_BUILD = "0.15.5";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
 
   function forceBuildBadge() {
@@ -20,23 +20,23 @@
   }
 
   function loadRelationshipMilestones() {
-    if (window.NoctisRelationshipMilestones) return;
+    if (window.NoctisRelationshipMilestones?.version === "1.2.0") return;
 
-    const existing = document.querySelector('script[data-noctis-relationship-milestones]');
-    if (existing) return;
+    const old = document.querySelector('script[data-noctis-relationship-milestones]');
+    if (old) old.remove();
 
     const script = document.createElement("script");
-    script.src = "relationship-milestones.js?v=1.1.0";
+    script.src = "relationship-milestones.js?v=1.2.0";
     script.async = false;
     script.dataset.noctisRelationshipMilestones = "1";
 
     script.addEventListener("load", () => {
-      console.info("[Noctis] Relationship Milestones v1.1 loaded.");
+      console.info("[Noctis] Relationship Milestones v1.2 + Milestone Sync loaded.");
       removeSyncUI();
     });
 
     script.addEventListener("error", () => {
-      console.error("[Noctis] Could not load relationship-milestones.js");
+      console.error("[Noctis] Could not load relationship-milestones.js v1.2");
     });
 
     document.body.appendChild(script);

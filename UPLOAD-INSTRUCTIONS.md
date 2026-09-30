@@ -1,32 +1,30 @@
-# Noctis v0.15.4 — GitHub Ready
+# Noctis v0.15.5 — Milestone Sync
 
-You only need to replace/upload **two files** in the root of:
+Replace these two files in the ROOT of `wildwonder0830/NOCTIS_mourning_Vale`:
 
-`wildwonder0830/NOCTIS_mourning_Vale`
+- `build-version.js`
+- `relationship-milestones.js`
 
-1. `build-version.js`
-2. `relationship-milestones.js`
+No index.html editing is required.
 
-No `index.html` editing is required for this build.
+## New feature: Milestone Sync
+Open a story chat → tap `🖤 Milestones` → tap `🔄 Milestone Sync`.
 
-## What happens after upload
+On the first run, Noctis scans the full active story in chunks and suggests relationship milestones it finds. Suggestions are NOT saved automatically.
 
-- `build-version.js` changes the header to **v0.15.4**
-- It removes the visible Sync UI
-- It automatically loads `relationship-milestones.js`
-- Chat gets a **🖤 Milestones** button
-- The milestone panel includes **✨ Test Popup**
-- The ceremonial emoji popup works independently of sync
-- Relationship milestone history remains stored in the active chat's existing `milestones` array
+Review the list:
+- uncheck anything that is wrong
+- tap `🖤 Add Selected` to add canon milestones
+- tap `Mark Reviewed` if there is nothing you want to add
+- use `↺ Rescan All` whenever you want Noctis to reread the entire timeline
 
-## Test
+After a reviewed scan, future normal syncs scan only newer story messages.
 
-After GitHub Pages deploys:
+Historical sync items store:
+- the detected milestone
+- evidence summary
+- approximate source message
+- original message date when available
+- `Story Sync` as the source
 
-1. Refresh Noctis.
-2. Confirm the header says **v0.15.4**.
-3. Open **Chat**.
-4. Tap **🖤 Milestones**.
-5. Tap **✨ Test Popup**.
-
-You should get the full ceremonial popup immediately.
+The scanner is deliberately conservative around permanent states such as mating, marking, bonding, engagement, marriage, claiming, and pregnancy-related decisions. It requires explicit story evidence rather than inferring them from possessive dialogue or chemistry.
