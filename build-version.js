@@ -1,8 +1,8 @@
-/* Noctis Mourning Vale v0.16.5 — Build Authority + Relationship Milestone Sync Loader */
+/* Noctis Mourning Vale v0.16.6 — Build Authority + Relationship Milestone Sync Loader */
 (() => {
   'use strict';
 
-  const CURRENT_BUILD = "0.16.5";
+  const CURRENT_BUILD = "0.16.6";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
 
   function forceBuildBadge() {
