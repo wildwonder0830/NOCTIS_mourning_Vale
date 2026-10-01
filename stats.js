@@ -408,6 +408,7 @@ ${transcript(newMsgs)}`;
     if(!root)return;
     root.querySelectorAll(".message-body").forEach(el=>{
       const txt=el.textContent||"";
+      if(window.NoctisInlineTexts && /\[\[PHONE:/i.test(txt)){window.NoctisInlineTexts.format(el,txt);return;}
       if(!txt.includes("**"))return;
       const frag=document.createDocumentFragment();
       const parts=txt.split(/(\*\*[\s\S]*?\*\*)/g);

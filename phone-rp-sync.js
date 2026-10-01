@@ -1,195 +1,57 @@
-/* Noctis Mourning Vale v0.12.2 — Main RP → Phone Sync */
+/* Noctis 0.16.3 — Inline story texts and a read-only legacy archive. */
 (() => {
-  const BUILD="0.12.2";
-  const key=s=>String(s||"").trim().toLowerCase().replace(/\s+/g," ");
-
-  function ensureBridgeData(){
-    const c=activeCharacter(),ch=activeChat();
-    if(!ch.phoneThreads||typeof ch.phoneThreads!=="object"||Array.isArray(ch.phoneThreads))ch.phoneThreads={};
-    if(!ch.phoneUnread||typeof ch.phoneUnread!=="object"||Array.isArray(ch.phoneUnread))ch.phoneUnread={};
-    if(!ch.rpPhoneImportedIds||typeof ch.rpPhoneImportedIds!=="object"||Array.isArray(ch.rpPhoneImportedIds))ch.rpPhoneImportedIds={};
-    (c.phoneContacts||[]).forEach(p=>{
-      if(!Array.isArray(ch.phoneThreads[p.id]))ch.phoneThreads[p.id]=[];
-      if(!Number.isFinite(Number(ch.phoneUnread[p.id])))ch.phoneUnread[p.id]=0;
+  'use strict';
+  function appendProse(parent,text){
+    String(text).split(/(\*\*[\s\S]*?\*\*)/g).forEach(part=>{
+      if(part.startsWith('**')&&part.endsWith('**')&&part.length>4){const strong=document.createElement('strong');strong.textContent=part.slice(2,-2);parent.append(strong);}
+      else parent.append(document.createTextNode(part));
     });
   }
-
-  function findContact(name){
-    const c=activeCharacter(),wanted=key(name);
-    if(!wanted)return null;
-    return (c.phoneContacts||[]).find(p=>{
-      const names=[p.name,p.displayName].map(key).filter(Boolean);
-      return names.includes(wanted) || names.some(n=>n.startsWith(wanted+" ")||wanted.startsWith(n+" "));
-    }) || null;
-  }
-
-  function addIncomingText(contact,text,sourceMessageId=null){
-    ensureBridgeData();
-    const ch=activeChat(),clean=String(text||"").trim();
-    if(!contact||!clean)return false;
-    const thread=ch.phoneThreads[contact.id]||(ch.phoneThreads[contact.id]=[]);
-    if(thread.some(m=>m.role==="assistant" && key(m.text)===key(clean)))return false;
-
-    thread.push({id:uid(),role:"assistant",text:clean,createdAt:now(),fromMainRp:true,sourceMessageId:sourceMessageId||null});
-    ch.phoneUnread[contact.id]=Number(ch.phoneUnread[contact.id]||0)+1;
-    ch.updatedAt=now();
-    return true;
-  }
-
-  function extractMarkedPhoneEvents(msg){
-    const text=String(msg?.text||"");
-    if(!/\[\[PHONE:/i.test(text))return 0;
-    let added=0;
-    const cleaned=text.replace(/\[\[PHONE:([^\]]+)\]\]([\s\S]*?)\[\[\/PHONE\]\]/gi,(whole,name,body)=>{
-      const p=findContact(name);
-      if(!p)return whole;
-      addIncomingText(p,body,msg.id);
-      added++;
-      return "";
-    }).replace(/\n{3,}/g,"\n\n").trim();
-
-    if(added){
-      msg.text=cleaned;
-      msg.phoneEventsSynced=true;
-      if(!/\[\[PHONE:/i.test(cleaned))activeChat().rpPhoneImportedIds[msg.id]=true;
+  function format(el,text){
+    const fragment=document.createDocumentFragment(),re=/\[\[PHONE:([^\]\n]+)\]\]([\s\S]*?)\[\[\/PHONE\]\]/gi;
+    let end=0,match;
+    while((match=re.exec(text))){
+      appendProse(fragment,text.slice(end,match.index));
+      const card=document.createElement('aside');card.className='inline-story-text';
+      const label=document.createElement('strong');label.className='inline-text-sender';label.textContent=`📱 Text · ${match[1].trim()}`;
+      const body=document.createElement('div');body.textContent=match[2].trim();
+      card.append(label,body);fragment.append(card);end=re.lastIndex;
     }
-    return added;
+    appendProse(fragment,text.slice(end));el.replaceChildren(fragment);
   }
-
-  function processMarkedEvents(){
-    ensureBridgeData();
-    const ch=activeChat();
-    let changed=false;
-    (ch.messages||[]).forEach(msg=>{
-      if(msg?.role!=="assistant" || ch.rpPhoneImportedIds[msg.id])return;
-      if(extractMarkedPhoneEvents(msg)>0)changed=true;
-    });
-    if(changed)saveVault();
-  }
-
-  if(typeof compileSystemPrompt==="function" && !window.__noctisRpPhoneMarkerPrompt){
-    const baseCompile=compileSystemPrompt;
-    compileSystemPrompt=function(){
-      return baseCompile()+`
-
-MAIN-RP PHONE EVENT PROTOCOL — INTERNAL
-When a character actually SENDS a text message during the MAIN RP, also record the exact sent text as:
-[[PHONE:Exact Contact Name]]actual text message[[/PHONE]]
-
-Rules:
-- Use this ONLY for a text/phone message that is actually sent in the story.
-- Use the established contact/character name.
-- Put only the actual text message inside the marker.
-- If the character sends three separate texts, emit THREE separate PHONE blocks.
-- Never use this for spoken dialogue, thoughts, unsent drafts, social posts, or narration.
-- Continue the surrounding RP normally.
-- This metadata is removed from visible RP and copied into the Phone thread automatically.`;
-    };
-    window.__noctisRpPhoneMarkerPrompt=true;
-  }
-
-  if(typeof renderMessages==="function" && !window.__noctisRpPhoneRenderPatched){
-    const baseRender=renderMessages;
-    renderMessages=function(){
-      processMarkedEvents();
-      baseRender();
-      try{if(typeof updatePhoneUnreadUI==="function")updatePhoneUnreadUI()}catch{}
-    };
-    window.__noctisRpPhoneRenderPatched=true;
-  }
-
-  function parseRecoveryPacket(raw){
-    const rows=[];
-    String(raw||"").split(/\r?\n/).forEach(line=>{
-      const t=line.trim();
-      if(!/^PHONE\|/i.test(t))return;
-      const parts=t.split("|").slice(1);
-      const name=String(parts.shift()||"").trim(),text=parts.join("|").trim();
-      if(name&&text)rows.push({name,text});
-    });
-    return rows;
-  }
-
-  async function recoverRecentRpTexts(){
-    ensureBridgeData();
-    const c=activeCharacter(),ch=activeChat(),contacts=(c.phoneContacts||[]);
-    if(!contacts.length){alert("Add the character to Phone Contacts first, then run Recover RP Texts.");return}
-
-    const assistant=(ch.messages||[]).filter(m=>m.role==="assistant"&&m.text).slice(-40);
-    if(!assistant.length){alert("There are no recent character RP messages to scan.");return}
-
-    const roster=contacts.map(p=>`${p.name}${p.displayName&&p.displayName!==p.name?` / ${p.displayName}`:""}${p.relationship?` — ${p.relationship}`:""}`).join("\n");
-    const transcript=assistant.map((m,i)=>`[${i+1}] ${m.text}`).join("\n\n");
-
-    const btn=document.getElementById("recoverRpTextsBtn"),status=document.getElementById("recoverRpTextsStatus");
-    if(btn){btn.disabled=true;btn.textContent="Scanning…"}
-    if(status)status.textContent=`Scanning the last ${assistant.length} character posts for texts that were actually sent…`;
-
-    const prompt=`RECOVER PHONE MESSAGES FROM MAIN RP
-
-Known phone contacts:
-${roster}
-
-Extract ONLY phone/text messages that a known contact ACTUALLY SENT to the protagonist.
-Do not extract spoken dialogue, thoughts, drafts, imagined texts, social posts, or messages merely discussed.
-If one character sends multiple separate texts, return each separately.
-
-Return ONLY:
-PHONE|Exact Contact Name|exact message content
-
-If there are none, return:
-NONE
-
-RECENT ASSISTANT RP:
-${transcript}`;
-
-    try{
-      const raw=await openRouterRequest([
-        {role:"system",content:"You are a strict continuity extractor. Return only PHONE|name|message lines or NONE. No prose, JSON, or markdown."},
-        {role:"user",content:prompt}
-      ],700,0.05);
-
-      if(activeChat()!==ch)throw new Error("Timeline changed during recovery. Please rerun in the original timeline.");
-      const rows=parseRecoveryPacket(raw);
-      let added=0;
-      rows.forEach(row=>{
-        const p=findContact(row.name);
-        if(p && addIncomingText(p,row.text,null))added++;
-      });
-      saveVault();
-      try{if(typeof renderPhone==="function")renderPhone()}catch{}
-      try{if(typeof updatePhoneUnreadUI==="function")updatePhoneUnreadUI()}catch{}
-      try{if(typeof renderMemoryInspector==="function")renderMemoryInspector()}catch{}
-
-      if(status)status.textContent=added
-        ?`Recovered ${added} text message${added===1?"":"s"} into Phone.`
-        :"No new recoverable phone messages were found. Make sure Henry exists as a Phone Contact, then try again.";
-    }catch(err){
-      if(status)status.textContent=`Could not recover RP texts: ${err?.message||String(err)}`;
-    }finally{
-      if(btn){btn.disabled=false;btn.textContent="Recover RP Texts"}
+  window.NoctisInlineTexts={format};
+  const basePrompt=compileSystemPrompt;
+  compileSystemPrompt=function(){
+    const roster=(activeCharacter().phoneContacts||[]).map(p=>`${p.displayName||p.name}: ${p.relationship||'established contact'}`).join('\n');
+    return basePrompt()+`\n\nSTORY TEXT MESSAGES\nTexting happens within normal story turns. When an NPC actually sends a text, display it once as [[PHONE:Sender name]]message[[/PHONE]]. Surrounding narration stays outside the marker. Use occasional incoming texts only when natural; not every turn. Never write the protagonist's texts, replies, reactions or decisions. The user may text through their normal chat message. Stop when their response is needed. Each sender knows only what they witnessed or learned, never private scenes automatically. These texts are part of this timeline's story history.\nKnown contacts:\n${roster||'(use established story characters)'}`;
+  };
+  function renderArchive(){
+    const host=document.getElementById('legacyPhoneArchiveBody');if(!host)return;host.replaceChildren();
+    const c=activeCharacter(),ch=activeChat();let count=0;
+    for(const [kind,threads] of [['contact',ch.phoneThreads||{}],['group',ch.groupThreads||{}]]){
+      for(const [id,messages] of Object.entries(threads)){
+        if(!Array.isArray(messages)||!messages.length)continue;
+        const name=kind==='contact'?(c.phoneContacts||[]).find(p=>p.id===id):(ch.phoneGroups||[]).find(p=>p.id===id);
+        const section=document.createElement('details'),title=document.createElement('summary');title.textContent=`${name?.displayName||name?.name||'Archived conversation'} · ${messages.length} messages`;section.append(title);
+        for(const msg of messages){const p=document.createElement('p');p.className='archived-text';p.textContent=`${msg.role==='user'?'You':msg.author||name?.displayName||name?.name||'Contact'}: ${msg.text||''}`;section.append(p);count++;}
+        host.append(section);
+      }
     }
+    if(!count)host.textContent='No archived phone messages in this timeline.';
   }
-
-  function injectRecoveryUI(){
-    const directory=document.getElementById("phoneDirectory");
-    if(!directory || document.getElementById("recoverRpTextsBtn"))return;
-    const box=document.createElement("div");
-    box.className="ambient-text-controls";
-    box.innerHTML=`
-      <div><strong>RP → Phone continuity</strong>
-      <div class="hint mini-hint">Future texts sent inside main RP are copied into Phone automatically. Use this once to recover recent texts that happened before this bridge existed.</div></div>
-      <button id="recoverRpTextsBtn" class="ghost small" type="button">Recover RP Texts</button>
-      <div id="recoverRpTextsStatus" class="test-result"></div>`;
-    directory.appendChild(box);
-    document.getElementById("recoverRpTextsBtn")?.addEventListener("click",recoverRecentRpTexts);
+  function archiveUI(){
+    const memory=document.querySelector('[data-view="memory"] .panel');if(!memory||document.getElementById('legacyPhoneArchive'))return;
+    const section=document.createElement('details');section.id='legacyPhoneArchive';section.className='daily-usage-panel';
+    section.innerHTML='<summary>Archived phone conversations</summary><p class="hint">Read-only messages from this timeline. New texts appear in the story. Old threads stay in backups but are no longer sent with every reply. Copy any important old facts into timeline memory if needed.</p><div id="legacyPhoneArchiveBody"></div>';
+    section.addEventListener('toggle',()=>{if(section.open)renderArchive();});memory.append(section);
   }
-
-  injectRecoveryUI();
-  processMarkedEvents();
-  const observer=new MutationObserver(()=>injectRecoveryUI());
-  observer.observe(document.body,{childList:true,subtree:true});
-
-  const badge=document.getElementById("buildBadge");
-  if(badge)badge.textContent="v"+BUILD;
+  const baseRender=renderMessages;
+  renderMessages=function(){baseRender();document.querySelectorAll('#messages .message-body').forEach(el=>{if(/\[\[PHONE:/i.test(el.textContent||''))format(el,el.textContent);});};
+  const baseAll=renderAll;
+  renderAll=function(){baseAll();archiveUI();if(document.getElementById('legacyPhoneArchive')?.open)renderArchive();};
+  const baseTab=selectTab;
+  selectTab=function(name){return baseTab(name==='phone'?'memory':name);};
+  settings.ambientTextsEnabled=false;saveSettings();
+  const style=document.createElement('style');style.textContent=`[data-tab="phone"],[data-view="phone"]{display:none!important}.inline-story-text{display:block;margin:12px 0;padding:12px 14px;border:1px solid #ad78ef;border-left:4px solid #ad78ef;border-radius:12px;background:rgba(144,75,218,.13);white-space:pre-wrap;overflow-wrap:anywhere}.inline-text-sender{display:block;color:#d9b9ff;margin-bottom:6px;font-size:.9em}.archived-text{white-space:pre-wrap;overflow-wrap:anywhere;border-bottom:1px solid var(--line,#49354f);padding:8px 0}`;document.head.append(style);
+  archiveUI();renderMessages();
 })();
