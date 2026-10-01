@@ -11,9 +11,9 @@ test('automatic catch-up saves once, survives reload, then detects new replies',
  const reload=await boot({'noctis-mourning-vale-v0.3':saved});t.after(()=>reload.close());
  reload.run(`settings.apiKey='test';window.calls=0;openRouterRequest=async()=>{calls++;return JSON.stringify({milestones:[]})};`);
  await reload.w.NoctisRelationshipMilestones.autoScan();assert.equal(reload.run('calls'),0);
- h.run(`activeChat().messages.push({id:'c',role:'assistant',text:'Will you marry me?'});openRouterRequest=async()=>{calls++;return JSON.stringify({milestones:[]})};`);
+ h.run(`activeChat().messages.push(...Array.from({length:12},(_,i)=>({id:'c'+i,role:i%2?'assistant':'user',text:'New story turn'})));openRouterRequest=async()=>{calls++;return JSON.stringify({milestones:[]})};`);
  await h.w.NoctisRelationshipMilestones.autoScan();assert.equal(h.run('calls'),2);
- assert.equal(h.run('activeChat().relationshipMilestoneScanThroughMessageId'),'c');
+ assert.equal(h.run('activeChat().relationshipMilestoneScanThroughMessageId'),'c11');
 });
 test('uncertain events persist for review and missing evidence cannot auto-save',async t=>{
  const h=await app(t);h.run(`openRouterRequest=async()=>JSON.stringify({milestones:[{title:'Dating',line:'Maybe dating.',evidence:'Unclear agreement.',messageIndex:2,confidence:'medium'},{title:'Married',messageIndex:2,confidence:'high'}]});`);

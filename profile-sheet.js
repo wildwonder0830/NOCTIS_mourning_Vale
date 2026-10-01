@@ -158,20 +158,29 @@
     });
   }
 
-  function profilePrompt(owner,label,maxChars=12000){
+  function profilePrompt(owner,label,maxChars=3000,baseText=''){
     if(!owner)return"";
-    const lines=[];
+    const lines=[], seen=new Set();let used=0;
+    const priority=new Set(['fullName','age','species','height','appearance','personality','backstory','relationshipStatus','health','currentForm','rpPermanentMemory']);
+    const required=new Set(['hardLimits','softLimits','rpAgency','rpPov','rpAvoid']);
+    const rows=[];
     for(const section of PROFILE_SECTIONS){
-      const rows=[];
+      if(section.interview)continue;
       for(const def of section.fields){
         const v=getField(owner,def).trim();
-        if(v)rows.push(`${def.label}: ${v}`);
+        if(!v||seen.has(v)||baseText.includes(v))continue;
+        seen.add(v);rows.push({key:def.key,text:`${def.label}: ${v}`});
       }
-      if(rows.length)lines.push(`\n[${section.title}]\n${rows.join("\n")}`);
+    }
+    rows.sort((a,b)=>(required.has(b.key)?2:priority.has(b.key)?1:0)-(required.has(a.key)?2:priority.has(a.key)?1:0));
+    for(const row of rows){
+      if(required.has(row.key)){lines.push(row.text);continue;}
+      if(used+row.text.length+1>maxChars)continue;
+      lines.push(row.text);used+=row.text.length+1;
     }
     const text=lines.join("\n").trim();
     if(!text)return"";
-    return `\n\n${label} — DETAILED PROFILE CANON\n${text.slice(0,maxChars)}`;
+    return `\n\n${label} — DETAILED PROFILE CANON\n${text}`;
   }
 
   function wrapRenderAll(){
@@ -192,8 +201,8 @@
     compileSystemPrompt=function(){
       const baseText=base();
       return baseText+
-        profilePrompt(activeCharacter(),"CHARACTER",12000)+
-        profilePrompt(activePersona(),"PROTAGONIST / PERSONA",12000)+
+        profilePrompt(activeCharacter(),"CHARACTER",3000,baseText)+
+        profilePrompt(activePersona(),"PROTAGONIST / PERSONA",3000,baseText)+
         `\n\nPROFILE AUTHORITY RULES\n- Treat populated detailed profile fields as canon unless the current timeline explicitly establishes a change.\n- Blank profile fields mean unspecified, not permission to invent permanent facts.\n- More specific structured fields override vague prose when they conflict.`;
     };
   }

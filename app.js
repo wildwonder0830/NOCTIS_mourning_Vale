@@ -1070,6 +1070,13 @@ function apiMessages(extraSystem=""){
     live=idx>=0?all.slice(idx+1):all.slice(-40);
   }else live=all.slice(-40);
 
+  // Keep full transcripts in storage; send a compact recent window plus saved memory.
+  live=live.slice(-16);
+  let chars=0;
+  for(let i=live.length-1;i>=0;i--){
+    chars+=String(live[i].text||'').length;
+    if(chars>16000 && i<live.length-2){live=live.slice(i+1);break;}
+  }
   const out=[{role:"system",content:compileSystemPrompt()},...live.map(m=>({role:m.role,content:m.text}))];
   if(extraSystem)out.push({role:"system",content:extraSystem});
   return out;
@@ -1137,6 +1144,8 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       details+=` • code: ${code}`;
 
       lastError=new Error(details);
+      // Exhausted daily allowances cannot recover through immediate retries.
+      if(/daily|per.day|per-day|free-models-per-day|insufficient credits|quota.*exceed/i.test(details))throw lastError;
 
       if(attempt<2 && [408,429,500,502,503,504].includes(Number(response.status))){
         await new Promise(r=>setTimeout(r,900 + attempt*500));
