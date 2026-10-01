@@ -10,7 +10,7 @@
 
       const chunks = [];
       c.phoneContacts.forEach(p => {
-        const arr = Array.isArray(ch.phoneThreads[p.id]) ? ch.phoneThreads[p.id].slice(-limitPerContact) : [];
+        const arr = Array.isArray(ch.phoneThreads[p.id]) ? NoctisPhoneOutput.history(ch.phoneThreads[p.id]).slice(-limitPerContact) : [];
         if (!arr.length) return;
         const name = p.displayName || p.name || "Contact";
         chunks.push(
