@@ -102,11 +102,15 @@ test('milestone review checkpoints only scanned messages and cannot skip failed 
  h.w.document.getElementById('rmMarkReviewed').click();
  assert.equal(h.run('activeChat().relationshipMilestoneScanThroughMessageId'),last);
 });
-test('social refresh reports errors without unhandled rejection',async t=>{
- const h=await app(t);h.run('openRouterRequest=async()=>{throw new Error("Limit reached")};');
- h.w.document.getElementById('socialRefreshBtn').click();await h.settle();
- assert.match(h.w.document.getElementById('socialStatus').textContent,/Limit reached/);
- assert.equal(h.w.document.getElementById('socialRefreshBtn').disabled,false);
+test('retired social UI and scheduler stay absent while saved posts survive',async t=>{
+ const h=await app(t);
+ h.run('settings.ambientSocialEnabled=true;activeChat().socialPosts=[{id:"saved-social",text:"Keep this post"}];renderAll();');
+ assert.equal(h.w.document.querySelector('[data-tab="social"]'),null);
+ assert.equal(h.w.document.querySelector('[data-view="social"]'),null);
+ assert.equal(h.w.document.getElementById('ambientSocialEnabled'),null);
+ assert.equal(h.intervals.some(x=>x.callback.name==='maybeScheduleSocial'),false);
+ assert.equal(h.run('activeChat().socialPosts[0].text'),'Keep this post');
+ assert.equal(h.requests.length,0);
 });
 
 test('failed regeneration preserves the original reply',async t=>{
