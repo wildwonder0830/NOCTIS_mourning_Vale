@@ -142,7 +142,8 @@ ${recentPosts||"(none)"}`}],500,0.95);
       ch.nextSocialPostAt=Date.now()+45*60*1000;saveVault();return;
     }
     if(Date.now()<Number(ch.nextSocialPostAt))return;
-    generateContactPosts(1).finally(()=>{
+    ch.nextSocialPostAt=Date.now()+35*60*1000;saveVault();
+    generateContactPosts(1).catch(()=>{}).finally(()=>{
       ch.nextSocialPostAt=Date.now()+(35+Math.random()*70)*60*1000;
       saveVault();
     });
@@ -181,7 +182,7 @@ ${recentPosts||"(none)"}`}],500,0.95);
         }else{
           post.reactions=(post.reactions||[]).filter(r=>!r.user);
         }
-        saveVault();renderSocial();
+        post.updatedAt=now();ch.updatedAt=now();saveVault();renderSocial();
       });
       const react=card.querySelector(".social-reactions");
       (post.reactions||[]).forEach(r=>{
@@ -259,8 +260,10 @@ ${recentMain||"(none)"}`;
       {role:"system",content:compileSystemPrompt()+"\n\n"+prompt}
     ],420,0.75);
     const packet=parseSocialPacket(raw);
-    post.reactions=packet.reactions;
-    post.comments=packet.comments;
+    const allowed=new Set(followers.map(p=>p.name));
+    post.reactions=[...(post.reactions||[]).filter(r=>r.user),...packet.reactions.filter(r=>allowed.has(r.name))];
+    post.comments=packet.comments.filter(c=>allowed.has(c.name));
+    post.updatedAt=now();ch.updatedAt=now();
     if(packet.reactions.length||packet.comments.length){
       ch.socialUnread=Number(ch.socialUnread||0)+packet.reactions.length+packet.comments.length;
     }
@@ -292,7 +295,7 @@ ${recentMain||"(none)"}`;
   function bindSocial(){
     document.getElementById("socialRefreshBtn")?.addEventListener("click",async ()=>{
       const b=document.getElementById("socialRefreshBtn");if(b){b.disabled=true;b.textContent="Refreshing…"}
-      try{await generateContactPosts(2)}finally{if(b){b.disabled=false;b.textContent="Refresh Feed"}}
+      try{await generateContactPosts(2)}catch(err){document.getElementById("socialStatus").textContent=`Could not refresh feed: ${err?.message||String(err)}`;}finally{if(b){b.disabled=false;b.textContent="Refresh Feed"}}
     });
     document.getElementById("socialForm")?.addEventListener("submit",async e=>{
       e.preventDefault();const input=document.getElementById("socialInput");const text=input?.value||"";

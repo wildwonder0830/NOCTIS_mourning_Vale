@@ -155,7 +155,7 @@ function loadSettings(){
     const current=localStorage.getItem(SETTINGS_KEY);
     if(current){
       const parsed=mergeCandidate(current);
-      if(parsed && parsed.apiKey)return parsed;
+      if(parsed)return parsed;
     }
 
     // 2) Known older Noctis keys.
@@ -491,8 +491,8 @@ function bindBasics(){
     activeCharacter()[key]=e.target.value;activeCharacter().updatedAt=now();saveVault();
     if(id==="charName"){$("chatCharacterName").textContent=e.target.value||"Noctis";$("characterEditorTitle").textContent=e.target.value||"Character";renderLibrary()}
   }));
-  $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;saveVault()});
-  if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;saveVault()});
+  $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;activeCharacter().updatedAt=now();saveVault()});
+  if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;activeCharacter().updatedAt=now();saveVault()});
   $("memoryRelationship").addEventListener("input",e=>{activeChat().relationshipMemory=e.target.value;activeChat().updatedAt=now();saveVault()});
   [["sceneLocation","location"],["sceneTime","time"],["sceneState","state"],["sceneEmotion","emotion"]].forEach(([id,key])=>$(id).addEventListener("input",e=>{activeChat().scene[key]=e.target.value;activeChat().updatedAt=now();saveVault()}));
   $("apiKey").addEventListener("input",e=>{settings.apiKey=e.target.value.trim();saveSettings();updateConnectionStatus()});
@@ -683,20 +683,19 @@ function renderMilestones(){
   });
 }
 
-function syncMilestonesToMemory(){
-  const ch=activeChat();
+function syncMilestonesToMemory(ch=activeChat()){
   const markerStart="[[AUTO MILESTONES]]";
   const markerEnd="[[/AUTO MILESTONES]]";
-  const base=(ch.relationshipMemory||"").replace(new RegExp(`\\n?${markerStart}[\\s\\S]*?${markerEnd}\\n?`,"g"),"").trim();
+  const base=(ch.relationshipMemory||"").replace(/\n?\[\[AUTO MILESTONES\]\][\s\S]*?\[\[\/AUTO MILESTONES\]\]\n?/g,"").trim();
   const block=ch.milestones.length
     ? `${markerStart}\n${ch.milestones.map(m=>`- ${m.text}`).join("\n")}\n${markerEnd}`
     : "";
   ch.relationshipMemory=[base,block].filter(Boolean).join("\n\n");
-  if($("memoryRelationship"))$("memoryRelationship").value=ch.relationshipMemory;
+  if(activeChat()===ch && $("memoryRelationship"))$("memoryRelationship").value=ch.relationshipMemory;
 }
 
-function milestoneCandidateText(){
-  const recent=activeChat().messages.slice(-6).map(m=>m.text||"").join("\n").toLowerCase();
+function milestoneCandidateText(ch=activeChat()){
+  const recent=ch.messages.slice(-6).map(m=>m.text||"").join("\n").toLowerCase();
   const signals=[
     "i love you","love you","first time","had sex","slept together","made love",
     "kissed for the first time","engaged","proposal","marry me","married","wedding",
@@ -720,10 +719,9 @@ function normalizeMilestoneResult(raw){
   }
 }
 
-function maybeAutoSaveMilestone(){
+function maybeAutoSaveMilestone(ch=activeChat()){
   if(settings.autoMemory===false)return;
-  if(!milestoneCandidateText())return;
-  const ch=activeChat();
+  if(!milestoneCandidateText(ch))return;
   ch.pendingMilestone=true;
   ch.pendingMilestoneAt=now();
   saveVault();
@@ -787,7 +785,7 @@ ${recent}`;
 
     if(!duplicate){
       ch.milestones.push({id:uid(),text:milestone,createdAt:now(),source:"manual"});
-      syncMilestonesToMemory();
+      syncMilestonesToMemory(ch);
       ch.updatedAt=now();
       renderMilestones();
     }
@@ -965,6 +963,7 @@ function renderMessages(){
         cancel.addEventListener("click",()=>{editor.remove();actions.remove();body.classList.remove("hidden");tools.classList.remove("hidden")});
         save.addEventListener("click",()=>{
           const revised=editor.value.trim();if(!revised){alert("A message cannot be empty.");return}
+          invalidateCompactMemory(ch,msg);
           msg.text=revised;msg.edited=true;msg.editedAt=now();ch.updatedAt=now();saveVault();renderMessages();
         });
         actions.append(cancel,save);wrap.append(editor,actions);editor.focus();editor.setSelectionRange(editor.value.length,editor.value.length);
@@ -1169,16 +1168,32 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
   throw lastError||new Error("Unknown OpenRouter error.");
 }
 
+let mainGenerationBusy=false;
+function setMainGenerationBusy(busy){
+  mainGenerationBusy=busy;
+  for(const id of ["sendBtn","continueBtn","elaborateBtn","generateMyTurnBtn","regenBtn"]){
+    if($(id))$(id).disabled=busy;
+  }
+}
+function invalidateCompactMemory(ch,msg){
+  const all=getConversationMessages(ch);
+  const cutoff=all.findIndex(m=>m.id===ch.consolidatedThroughMessageId);
+  const index=all.findIndex(m=>m.id===msg.id);
+  if(cutoff>=0 && index>=0 && index<=cutoff){
+    ch.consolidatedMemory="";ch.consolidatedThroughMessageId=null;
+  }
+}
+
 async function generateDirectedContinuation(mode){
+  if(mainGenerationBusy)return;
   const ch=activeChat();
-  const last=ch.messages.at(-1);
+  const last=getConversationMessages(ch).at(-1);
   if(!last || last.role!=="assistant"){
     alert("There needs to be a character reply to continue from.");
     return;
   }
 
-  const btn = mode==="elaborate" ? $("elaborateBtn") : $("continueBtn");
-  btn.disabled=true;
+  setMainGenerationBusy(true);
   $("connectionStatus").textContent=mode==="elaborate" ? "elaborating…" : "continuing…";
 
   const instruction = mode==="elaborate"
@@ -1194,28 +1209,29 @@ async function generateDirectedContinuation(mode){
     saveVault();
     renderMessages();
     $("connectionStatus").textContent=`connected • ${settings.model}`;
-    maybeAutoSaveMilestone();
+    maybeAutoSaveMilestone(ch);
   }catch(err){
     $("connectionStatus").textContent="temporary model hiccup • try again";
     console.warn("Noctis continuation error:", err);
   }finally{
-    btn.disabled=false;
+    setMainGenerationBusy(false);
   }
 }
 
 
 async function generateMyTurn(){
+  if(mainGenerationBusy)return;
   const ch=activeChat();
   const c=activeCharacter();
-  const last=ch.messages.at(-1);
+  const last=getConversationMessages(ch).at(-1);
 
   if(!last || last.role!=="assistant"){
     alert("Generate My Turn works after the character has replied.");
     return;
   }
 
-  const btn=$("generateMyTurnBtn");
-  btn.disabled=true;
+  const originalInput=$("messageInput").value;
+  setMainGenerationBusy(true);
   $("connectionStatus").textContent="drafting your turn…";
 
   const instruction=`You are drafting the USER PROTAGONIST'S NEXT ROLEPLAY TURN for the user to review before sending.
@@ -1254,6 +1270,11 @@ ${settings.userTurnStyle||defaultSettings.userTurnStyle}`;
       Math.min(Number(settings.temperature??0.85),1.0)
     );
 
+    if(activeChat()!==ch || $("messageInput").value!==originalInput){
+      ch.messages.push({id:uid(),role:"systemnote",text:`SAVED DRAFT (not sent)\n${draft.trim()}`,createdAt:now()});
+      ch.updatedAt=now();saveVault();renderMessages();
+      return;
+    }
     $("messageInput").value=draft.trim();
     $("messageInput").focus();
     $("messageInput").setSelectionRange($("messageInput").value.length,$("messageInput").value.length);
@@ -1262,7 +1283,7 @@ ${settings.userTurnStyle||defaultSettings.userTurnStyle}`;
     $("connectionStatus").textContent="draft generator needs attention";
     alert(`Could not generate your turn: ${err?.message||String(err)}`);
   }finally{
-    btn.disabled=false;
+    setMainGenerationBusy(false);
   }
 }
 
@@ -1321,6 +1342,7 @@ async function handleChatCommand(text){
   }
   if(cmd==="/rewind"){
     let n=parseInt(arg||"2",10);if(!Number.isFinite(n)||n<1)n=2;n=Math.min(n,ch.messages.length);
+    ch.messages.slice(-n).forEach(m=>invalidateCompactMemory(ch,m));
     ch.messages.splice(Math.max(0,ch.messages.length-n),n);ch.updatedAt=now();saveVault();renderMessages();
     addCommandChip(`REWIND • removed ${n} message${n===1?"":"s"}`);return true;
   }
@@ -1359,19 +1381,28 @@ async function handleChatCommand(text){
   addCommandChip(`UNKNOWN COMMAND • ${cmd}`);return true;
 }
 
-async function generateReply(extraSystem=""){
+async function generateReply(extraSystem="",replaceMessage=null){
+  if(mainGenerationBusy)return;
+  const ch=activeChat();
   const send=$("sendBtn");
-  send.disabled=true;
+  setMainGenerationBusy(true);
   send.textContent="…";
   $("connectionStatus").textContent="thinking…";
   try{
-    const reply=await openRouterRequest(apiMessages(extraSystem));
-    activeChat().messages.push({id:uid(),role:"assistant",text:reply});
-    activeChat().updatedAt=now();
+    const messages=apiMessages(extraSystem);
+    if(replaceMessage){
+      // Regeneration replaces the old reply only after a successful response.
+      const index=messages.findLastIndex(m=>m.role==="assistant" && m.content===replaceMessage.text);
+      if(index>=0)messages.splice(index,1);
+    }
+    const reply=await openRouterRequest(messages);
+    if(replaceMessage){invalidateCompactMemory(ch,replaceMessage);ch.messages=ch.messages.filter(m=>m.id!==replaceMessage.id);}
+    ch.messages.push({id:uid(),role:"assistant",text:reply,createdAt:now()});
+    ch.updatedAt=now();
     saveVault();
     renderMessages();
     $("connectionStatus").textContent=`connected • ${settings.model}`;
-    maybeAutoSaveMilestone();
+    maybeAutoSaveMilestone(ch);
   }catch(err){
     const msg=String(err?.message||err);
     if(/rate limit|free-models-per-day|code:\s*429|code: 429/i.test(msg)){
@@ -1381,12 +1412,13 @@ async function generateReply(extraSystem=""){
     }
     console.warn("Noctis model error:", err);
   }finally{
-    send.disabled=false;
+    setMainGenerationBusy(false);
     send.textContent="Send";
   }
 }
 $("chatForm").addEventListener("submit",async e=>{
   e.preventDefault();
+  if(mainGenerationBusy)return;
   const input=$("messageInput"),text=input.value.trim();if(!text)return;
   input.value="";
   if(text.startsWith("/")){await handleChatCommand(text);return}
@@ -1398,7 +1430,14 @@ $("elaborateBtn").addEventListener("click",()=>generateDirectedContinuation("ela
 $("generateMyTurnBtn").addEventListener("click",generateMyTurn);
 
 $("regenBtn").addEventListener("click",async()=>{
-  const m=activeChat().messages;if(m.at(-1)?.role==="assistant")m.pop();if(m.at(-1)?.role!=="user")return;saveVault();renderMessages();await generateReply();
+  if(mainGenerationBusy)return;
+  const ch=activeChat(),m=ch.messages;
+  const last=m.at(-1);
+  if(last?.role==="assistant"){
+    if(m.at(-2)?.role!=="user")return;
+
+  }else if(last?.role!=="user")return;
+  await generateReply("",last?.role==="assistant"?last:null);
 });
 $("clearChatBtn").addEventListener("click",()=>{if(confirm("Clear this timeline's transcript? Character canon, lore, and memory remain.")){activeChat().messages=[];saveVault();renderMessages()}});
 

@@ -67,30 +67,16 @@
     return {name:target.name||oldName,chats:newChatCount,messages:newMsgCount};
   }
 
-  document.addEventListener("change",async event=>{
-    const input=event.target;
-    if(input?.id!=="importInput")return;
-    const file=input.files?.[0];
-    if(!file || !/\.json$/i.test(file.name||""))return;
-    let parsed;
-    try{parsed=JSON.parse(await file.text())}catch{return}
-    if(!isReplacement(parsed))return;
+  function importParsed(parsed){
+    const target=findTarget(parsed);
+    if(!target)throw new Error(`No matching current character found for ${parsed.targetName||parsed.character?.name||"this file"}.`);
+    const chats=target.chats?.length||0;
+    const msgs=(target.chats||[]).reduce((n,ch)=>n+(ch.messages?.length||0),0);
+    if(!confirm(`Replace ${target.name}'s CHARACTER SHEET and canon?\n\nPreserved: ${chats} chat(s), ${msgs} message(s), phone history, and runtime IDs.`))return false;
+    const done=replaceCharacter(parsed);
+    alert(`${done.name}'s character sheet was replaced successfully.\n\nPreserved: ${done.chats} chat(s) and ${done.messages} messages.`);
+    return true;
+  }
 
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-    try{
-      const target=findTarget(parsed);
-      if(!target)throw new Error(`No matching current character found for ${parsed.targetName||parsed.character?.name||file.name}.`);
-      const chats=Array.isArray(target.chats)?target.chats.length:0;
-      const msgs=(target.chats||[]).reduce((n,ch)=>n+(ch?.messages?.length||0),0);
-      if(!confirm(`Replace ${target.name}'s CHARACTER SHEET and canon?\n\nPreserved: ${chats} chat(s), ${msgs} message(s), phone history, and runtime IDs.\n\nThe imported profile/canon will replace the current character definition.`))return;
-      const done=replaceCharacter(parsed);
-      alert(`${done.name}'s character sheet was replaced successfully.\n\nPreserved: ${done.chats} chat(s) and ${done.messages} messages.`);
-    }catch(err){
-      alert(`Character replacement failed: ${err?.message||String(err)}`);
-    }finally{input.value=""}
-  },true);
-
-  window.NoctisCharacterReplacement={replaceCharacter,isReplacement};
+  window.NoctisCharacterReplacement={replaceCharacter,isReplacement,importParsed};
 })();

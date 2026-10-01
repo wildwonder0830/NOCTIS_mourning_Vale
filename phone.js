@@ -357,7 +357,7 @@ ${mainRecent||"(none)"}`}],420,0.85);
         const author=parts.shift().trim(),msg=parts.join("|").trim();
         if(members.some(p=>p.name===author)&&msg)thread.push({id:uid(),role:"assistant",author,text:msg,createdAt:now()});
       });
-      saveVault();openGroupChat(g.id);
+      ch.updatedAt=now();saveVault();if(activeChat()===ch && $("phoneForm")?.dataset.groupId===g.id)openGroupChat(g.id);
     }catch(err){alert(`Group reply failed: ${err?.message||String(err)}`)}
   }
 
@@ -520,6 +520,7 @@ ${mainRecent||"(none)"}`}],420,0.85);
         ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");saveVault();return;
       }
 
+      ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");saveVault();
       const p=eligible[Math.floor(Math.random()*eligible.length)];
       const thread=phoneThread(ch,p);
       const recent=thread.slice(-10).map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n");
@@ -592,7 +593,7 @@ ${social||"(none)"}`;
       const del=document.createElement("button");del.type="button";del.className="phone-mini danger";del.textContent="Delete";del.addEventListener("click",()=>{if(!confirm("Delete this message from this phone thread?"))return;ch.phoneThreads[p.id]=msgs.filter(x=>x.id!==msg.id);saveVault();renderPhoneMessages();renderMemoryInspector()});tools.appendChild(del);row.append(bubble,meta,tools);host.appendChild(row)});
     host.scrollTop=host.scrollHeight;
   }
-  function renderPhone(){ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();updatePhoneUnreadUI();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
+  function renderPhone(){const form=$("phoneForm");if(form)delete form.dataset.groupId;const input=$("phoneInput");if(input)input.placeholder="Message…";ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();updatePhoneUnreadUI();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
 
   function recentPhoneContext(ch=activeChat(),limit=6){const c=activeCharacter(),chunks=[];(c.phoneContacts||[]).forEach(p=>{const arr=(ch.phoneThreads?.[p.id]||[]).slice(-limit);if(!arr.length)return;chunks.push(`TEXT THREAD — ${p.displayName||p.name}\n${arr.map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n")}`)});return chunks.join("\n\n")}
   function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=phoneThread(ch,p).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nRelationship / role: ${p.relationship||"(not specified)"}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
@@ -642,9 +643,19 @@ ${social||"(none)"}`;
       ambientFreq.addEventListener("change",e=>{settings.ambientTextFrequency=e.target.value||"normal";const ch=activeChat();ch.nextAmbientTextAt=Date.now()+ambientDelayMs(settings.ambientTextFrequency);saveSettings();saveVault()});
     }
     const add=$("addPhoneContactBtn");if(add)add.addEventListener("click",()=>{const c=activeCharacter(),p=defaultContact(c,c.phoneContacts.length);c.phoneContacts.push(p);c.activePhoneContactId=p.id;c.chats.forEach(ch=>{ch.phoneThreads=ch.phoneThreads||{};ch.phoneThreads[p.id]=[]});saveVault();renderPhoneContacts();renderPhone()});
-    const form=$("phoneForm");if(form)form.addEventListener("submit",async e=>{e.preventDefault();const input=$("phoneInput"),text=input.value.trim();if(!text)return;input.value="";const gid=form.dataset.groupId||"";if(gid)await sendGroupMessage(gid,text);else await sendPhoneMessage(text)});
+    const form=$("phoneForm");let phoneBusy=false;
+    if(form)form.addEventListener("submit",async e=>{
+      e.preventDefault();if(phoneBusy)return;
+      const input=$("phoneInput"),text=input.value.trim();if(!text)return;
+      const gid=form.dataset.groupId||"";input.value="";phoneBusy=true;$("phoneSendBtn").disabled=true;
+      try{if(gid)await sendGroupMessage(gid,text);else await sendPhoneMessage(text);}
+      finally{phoneBusy=false;$("phoneSendBtn").disabled=false;}
+    });
     const away=$("phoneAwayNote");if(away)away.addEventListener("input",e=>{activeChat().phoneAwayNote=e.target.value;activeChat().updatedAt=now();saveVault()});
-    const clear=$("clearPhoneThreadBtn");if(clear)clear.addEventListener("click",()=>{const p=contact();if(!p)return;if(!confirm(`Clear the phone thread with ${p.displayName||p.name}?`))return;activeChat().phoneThreads[p.id]=[];saveVault();renderPhoneMessages();renderMemoryInspector()});
+    const clear=$("clearPhoneThreadBtn");if(clear)clear.addEventListener("click",()=>{
+      const ch=activeChat(),gid=$("phoneForm")?.dataset.groupId;
+      if(gid){const g=ch.phoneGroups.find(x=>x.id===gid);if(!g||!confirm(`Clear the group thread with ${g.name}?`))return;ch.groupThreads[gid]=[];ch.updatedAt=now();saveVault();openGroupChat(gid);return;}
+      const p=contact();if(!p)return;if(!confirm(`Clear the phone thread with ${p.displayName||p.name}?`))return;activeChat().phoneThreads[p.id]=[];saveVault();renderPhoneMessages();renderMemoryInspector()});
     const budget=$("monthlyBudgetUsd");if(budget)budget.addEventListener("input",e=>{const v=e.target.value.trim();settings.monthlyBudgetUsd=v===""?"":Math.max(0,Number(v)||0);saveSettings();renderUsagePanel()});
     const model=$("paidNemotronShortcut");if(model)model.addEventListener("change",e=>{if(!e.target.value)return;settings.model=e.target.value;saveSettings();const sel=$("modelName");if(sel&&!Array.from(sel.options).some(o=>o.value===settings.model)){const o=document.createElement("option");o.value=settings.model;o.textContent=settings.model.includes(":free")?"Nemotron 3 Ultra — free":"Nemotron 3 Ultra — paid";sel.appendChild(o)}if(sel)sel.value=settings.model;updateConnectionStatus();e.target.value=""});
     const reset=$("resetUsageBtn");if(reset)reset.addEventListener("click",()=>{if(!confirm("Reset Noctis's local usage counter for this month? This does not change OpenRouter billing."))return;const db=loadUsage();delete db[monthKey()];saveUsage(db);renderUsagePanel()});

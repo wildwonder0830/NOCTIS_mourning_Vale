@@ -223,6 +223,28 @@
     };
   }
 
+  function importPersona(parsed){
+    const src=parsed?.persona&&typeof parsed.persona==="object"?parsed.persona:parsed;
+    if(!src || typeof src!=="object" || !src.name)throw new Error("That file is not a Noctis persona.");
+    ensurePersonas(vault);
+    const requested=Number(parsed?.targetSlot??parsed?.slot??src?.targetSlot??src?.slot);
+    const p=Number.isInteger(requested)&&requested>=1&&requested<=4
+      ?(vault.personas.find(x=>Number(x.slot)===requested)||vault.personas[requested-1])
+      :activePersona();
+    if(!p)throw new Error("Could not resolve a persona slot.");
+    const protectedKeys=new Set(["id","slot"]);
+    Object.entries(src).forEach(([k,v])=>{
+      if(protectedKeys.has(k))return;
+      if(k==="profileSheet" && v && typeof v==="object")p.profileSheet=copy(v);
+      else if(typeof v==="string" || typeof v==="number" || typeof v==="boolean" || v===null)p[k]=v;
+    });
+    p.updatedAt=now();
+    activeChat().activePersonaId=p.id;
+    saveVault();renderAll();
+    alert(`Imported ${p.name||"persona"} into Persona Slot ${p.slot}, including detailed profile fields.`);
+    return p;
+  }
+
   function patchPersonaImporter(){
     const old=byId("personaImportInput");
     if(!old || old.dataset.completeProfileImport==="1")return;
@@ -233,24 +255,7 @@
       const file=e.target.files?.[0];if(!file)return;
       try{
         const parsed=JSON.parse(await file.text());
-        const src=parsed?.persona&&typeof parsed.persona==="object"?parsed.persona:parsed;
-        if(!src || typeof src!=="object" || !src.name)throw new Error("That file is not a Noctis persona.");
-        ensurePersonas(vault);
-        const requested=Number(parsed?.targetSlot??src?.slot);
-        const p=Number.isInteger(requested)&&requested>=1&&requested<=4
-          ?(vault.personas.find(x=>Number(x.slot)===requested)||vault.personas[requested-1])
-          :activePersona();
-        if(!p)throw new Error("Could not resolve a persona slot.");
-        const protectedKeys=new Set(["id","slot"]);
-        Object.entries(src).forEach(([k,v])=>{
-          if(protectedKeys.has(k))return;
-          if(k==="profileSheet" && v && typeof v==="object")p.profileSheet=copy(v);
-          else if(typeof v==="string" || typeof v==="number" || typeof v==="boolean" || v===null)p[k]=v;
-        });
-        p.updatedAt=now();
-        activeChat().activePersonaId=p.id;
-        saveVault();renderAll();
-        alert(`Imported ${p.name||"persona"} into Persona Slot ${p.slot}, including detailed profile fields.`);
+        importPersona(parsed);
       }catch(err){alert(`Could not import persona: ${err?.message||String(err)}`)}
       finally{fresh.value=""}
     });
@@ -280,6 +285,7 @@
     version:SHEET_VERSION,
     sections:PROFILE_SECTIONS,
     ensureProfile,
+    importPersona,
     render
   };
 })();

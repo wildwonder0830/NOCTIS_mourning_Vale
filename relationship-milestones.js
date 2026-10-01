@@ -8,7 +8,8 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
+  if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
   const SCAN_OVERLAP = 2;
@@ -188,6 +189,10 @@
 
   function openPanel(){
     buildUI();
+    if(pendingReview?.chat!==getChat()){
+      pendingSuggestions=[];
+      $('#rmSyncBox')?.classList.add('hidden');
+    }
     $('#relationshipMilestonePanel')?.classList.remove('hidden');
     renderAllBits();
   }
@@ -427,6 +432,18 @@ ${transcript}`;
   }
 
   let pendingSuggestions=[];
+  let pendingReview=null;
+  let scanBusy=false;
+  function validReview(){
+    if(!pendingReview || pendingReview.chat!==getChat() || !pendingReview.complete){
+      setSyncStatus('Finish a scan of this timeline before marking it reviewed.');return false;
+    }
+    const current=storyMessages();
+    if(pendingReview.messages.some((m,i)=>current[i]?.id!==m.id || current[i]?.text!==m.text)){
+      setSyncStatus('The scanned transcript was edited. Run Milestone Sync again.');return false;
+    }
+    return true;
+  }
 
   function setSyncStatus(text){
     const el=$('#rmSyncStatus');
@@ -459,6 +476,8 @@ ${transcript}`;
   }
 
   async function runMilestoneSync(full=false){
+    if(scanBusy)return;
+    pendingReview=null;
     const ch=ensure();
     if(!ch){alert('Open a story timeline first.');return;}
     if(typeof openRouterRequest!=='function'){
@@ -478,6 +497,8 @@ ${transcript}`;
     }
 
     const chunks=buildChunks(msgs,start);
+    scanBusy=true;
+    pendingReview={chat:ch,messages:msgs.map(m=>({id:m.id,text:m.text})),complete:false};
     pendingSuggestions=[];
     $('#rmSyncBox')?.classList.remove('hidden');
     const syncBtn=$('#rmStorySync'), allBtn=$('#rmRescanAll');
@@ -489,10 +510,12 @@ ${transcript}`;
       for(let i=0;i<chunks.length;i++){
         setSyncStatus(`Reading story… chunk ${i+1} of ${chunks.length}. ${found.length?`${found.length} possible milestone${found.length===1?'':'s'} found so far.`:''}`);
         const chunkFound=await analyzeChunk(msgs,chunks[i],i+1,chunks.length);
+        if(getChat()!==ch)throw new Error("Timeline changed during scan. Reopen the original timeline and scan again");
         found.push(...chunkFound);
       }
 
       found=dedupeSuggestions(found).filter(s=>!alreadyRecorded(s));
+      pendingReview.complete=true;
       pendingSuggestions=found;
       renderSyncSuggestions();
       setSyncStatus(found.length
@@ -503,12 +526,14 @@ ${transcript}`;
       renderSyncSuggestions();
       setSyncStatus(`Milestone Sync could not finish: ${err?.message||String(err)}. Nothing was added or changed.`);
     }finally{
+      scanBusy=false;
       if(syncBtn)syncBtn.disabled=false;
       if(allBtn)allBtn.disabled=false;
     }
   }
 
   function addSelectedSuggestions(){
+    if(!validReview())return;
     const ch=ensure();
     if(!ch)return;
 
@@ -541,7 +566,7 @@ ${transcript}`;
     }
 
     const msgs=storyMessages();
-    ch.relationshipMilestoneScanThroughMessageId=msgs.at(-1)?.id||null;
+    ch.relationshipMilestoneScanThroughMessageId=pendingReview.messages.at(-1)?.id||null;
     ch.updatedAt=stamp();
     syncCoreMemory();
     save();
@@ -560,10 +585,11 @@ ${transcript}`;
   }
 
   function markScanReviewed(){
+    if(!validReview())return;
     const ch=ensure();
     const msgs=storyMessages();
     if(!ch||!msgs.length)return;
-    ch.relationshipMilestoneScanThroughMessageId=msgs.at(-1)?.id||null;
+    ch.relationshipMilestoneScanThroughMessageId=pendingReview.messages.at(-1)?.id||null;
     ch.updatedAt=stamp();
     save();
     pendingSuggestions=[];

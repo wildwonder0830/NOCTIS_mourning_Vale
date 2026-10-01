@@ -107,59 +107,6 @@
     window.__noctisCompatSaveWrapped = true;
   }
 
-  /* Standalone character import compatibility: import-fix predates structured
-     Physical Canon. After a character-card import finishes, copy any structured
-     physical fields that were present in that JSON without disturbing normal
-     character/persona/vault handling. */
-  function characterSource(parsed){
-    if(!parsed || typeof parsed !== "object") return null;
-    if(Array.isArray(parsed.characters)) return null;
-    if(parsed.format === "noctis-persona" || parsed.persona) return null;
-    if(parsed.format === "noctis-character" && parsed.character) return parsed.character;
-    if(parsed.character && typeof parsed.character === "object") return parsed.character;
-    if(parsed.spec === "chara_card_v2" && parsed.data) return parsed.data;
-    if(parsed.data && typeof parsed.data === "object" && parsed.data.name) return parsed.data;
-    if(parsed.name) return parsed;
-    return null;
-  }
-
-  const PHYSICAL_KEYS = [
-    "species","height","weight","build","eyeColor","hairColor","hairStyle",
-    "skinTone","distinguishingFeatures","apparentAge","actualAge","currentForm"
-  ];
-
-  function watchStandaloneCharacterPhysicalImport(){
-    const input = document.getElementById("importInput");
-    if(!input || input.dataset.compatPhysical === "1") return;
-    input.dataset.compatPhysical = "1";
-    input.addEventListener("change", async e => {
-      const file = e.target.files?.[0];
-      if(!file || /\.txt$/i.test(file.name || "")) return;
-      let parsed, src;
-      try{ parsed = JSON.parse(await file.text()); src = characterSource(parsed); }catch{return;}
-      if(!src) return;
-      const values = {};
-      PHYSICAL_KEYS.forEach(k => { if(typeof src[k] === "string") values[k] = src[k]; });
-      if(!Object.keys(values).length) return;
-
-      const before = (() => { try{return activeCharacter()?.updatedAt || ""}catch{return ""} })();
-      let tries = 0;
-      const applyWhenReady = () => {
-        tries++;
-        let c;
-        try{ c = activeCharacter(); }catch{}
-        const importerFinished = c && (c.updatedAt !== before || (src.name && c.name === src.name));
-        if(!importerFinished && tries < 120){ setTimeout(applyWhenReady, 100); return; }
-        if(!c) return;
-        Object.entries(values).forEach(([k,v]) => { c[k] = v; });
-        if(typeof now === "function") c.updatedAt = now();
-        if(typeof saveVault === "function") saveVault();
-        if(typeof renderAll === "function") renderAll();
-      };
-      setTimeout(applyWhenReady, 0);
-    });
-  }
-
   function audit(){
     const required = [
       "app.js","phone.js","phone-fix.js","stats.js","social.js",
@@ -179,7 +126,6 @@
   }
 
   normalizeSharedShape();
-  watchStandaloneCharacterPhysicalImport();
   if(typeof saveVault === "function") saveVault();
 
   window.NoctisCompat = { build:BUILD, schema:SCHEMA, normalizeSharedShape, audit };

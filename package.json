@@ -1,0 +1,6 @@
+{
+  "name": "noctis-mourning-vale",
+  "private": true,
+  "scripts": {"test": "node --test tests/*regressions.cjs tests/scroll-stability.cjs"},
+  "devDependencies": {"jsdom": "30.1.1"}
+}

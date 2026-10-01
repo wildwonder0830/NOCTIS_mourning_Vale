@@ -114,8 +114,8 @@
         <div class="counter-row"><button class="ghost small minus" type="button">−</button>
         <strong>${Number(ch.storyStats[key]||0)}</strong>
         <button class="ghost small plus" type="button">+</button></div>`;
-      card.querySelector(".minus").addEventListener("click",()=>{ch.storyStats[key]=Math.max(0,Number(ch.storyStats[key]||0)-1);saveVault();renderCounters()});
-      card.querySelector(".plus").addEventListener("click",()=>{ch.storyStats[key]=Number(ch.storyStats[key]||0)+1;saveVault();renderCounters()});
+      card.querySelector(".minus").addEventListener("click",()=>{ch.storyStats[key]=Math.max(0,Number(ch.storyStats[key]||0)-1);ch.updatedAt=now();saveVault();renderCounters()});
+      card.querySelector(".plus").addEventListener("click",()=>{ch.storyStats[key]=Number(ch.storyStats[key]||0)+1;ch.updatedAt=now();saveVault();renderCounters()});
       host.appendChild(card);
     });
   }
@@ -217,7 +217,7 @@
 
     // If the model omitted participant/beat tags but did provide counters,
     // still accept the packet rather than failing the whole scan.
-    const hasAnyCounter=Object.values(result.increments).some(n=>Number(n)>0);
+    const hasAnyCounter=COUNTERS.every(([k])=>new RegExp(`(?:^|\\n)\\s*${k}\\s*[:=]\\s*\\d+\\b`,"i").test(text));
     const hasTagged=result.participants.length||result.beats.length;
     if(!hasAnyCounter && !hasTagged){
       throw new Error("The model did not return a recognizable stats packet.");
@@ -361,7 +361,7 @@ ${transcript(newMsgs)}`;
       .replace(/\b(his|her|their|your|my|the)\s+knot\b/gi,"$1 head")
       .replace(/\bknot\s+at\s+the\s+base\b/gi,"base")
       .replace(/\bknot\s+inside\b/gi,"body inside")
-      .replace(/\bknotting\s+(?:her|him|them|you)\b/gi,"holding $1 close");
+      .replace(/\bknotting\s+(her|him|them|you)\b/gi,"holding $1 close");
 
     return s;
   }
