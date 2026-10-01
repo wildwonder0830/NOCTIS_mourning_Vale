@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.1';
+  const VERSION = '1.3.2';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -153,22 +153,28 @@
     syncCoreMemory();
     save();
     renderAllBits();
+    if(!document.querySelector('.message-edit'))renderMessages();
     if(show) showCeremony(item);
     return item;
   }
 
+  let closeTimer=null, ceremonyChat=null, returnFocus=null;
   function showCeremony(item){
+    clearTimeout(closeTimer);
     buildUI();
     const modal=$('#relationshipMilestoneCeremony');
     if(!modal)return;
     const n=names();
+    ceremonyChat=getChat();
+    returnFocus=document.activeElement;
+    if(item.pendingCelebration){item.pendingCelebration=false;save();}
     $('#rmCeremonyEmoji').textContent=item.emoji||'✨🖤✨';
     $('#rmCeremonyTitle').textContent=item.title||'Milestone';
-    $('#rmCeremonyNames').textContent=`${n.persona} + ${n.character}`;
+    $('#rmCeremonyNames').textContent=item.participants?.length?item.participants.join(' & '):`${n.persona} + ${n.character}`;
     $('#rmCeremonyLine').textContent=item.line||item.note||'A new chapter has begun.';
     $('#rmCeremonyDate').textContent=fmtDate(item.occurredAt||item.createdAt||stamp());
     modal.classList.remove('hidden');
-    requestAnimationFrame(()=>modal.classList.add('rm-open'));
+    requestAnimationFrame(()=>{modal.classList.add('rm-open');$('#rmContinue')?.focus({preventScroll:true});});
   }
 
   function testCeremony(){
@@ -184,7 +190,17 @@
     const m=$('#relationshipMilestoneCeremony');
     if(!m)return;
     m.classList.remove('rm-open');
-    setTimeout(()=>m.classList.add('hidden'),180);
+    clearTimeout(closeTimer);
+    closeTimer=setTimeout(()=>{m.classList.add('hidden');returnFocus?.isConnected&&returnFocus.focus({preventScroll:true});flushCelebrations();},180);
+  }
+
+  function flushCelebrations(){
+    const modal=$('#relationshipMilestoneCeremony');
+    if(modal && !modal.classList.contains('hidden'))return;
+    if(document.visibilityState==='hidden' || !document.querySelector('[data-view="chat"].active'))return;
+    if($('#relationshipMilestonePanel') && !$('#relationshipMilestonePanel').classList.contains('hidden'))return;
+    const pending=history().find(item=>item.pendingCelebration);
+    if(pending)showCeremony(pending);
   }
 
   function openPanel(){
@@ -487,6 +503,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
           ch.relationshipMilestoneAutoSuggestions=dedupeSuggestions([...(ch.relationshipMilestoneAutoSuggestions||[]),s]);continue;
         }
         last=addMilestone({...s,note:s.evidence,source:'automatic',sourceMessageIndex:s.messageIndex,show:false});added++;
+        if(!catchup && last)last.pendingCelebration=true;
       }
       ch.relationshipMilestoneAutoSuggestions=(ch.relationshipMilestoneAutoSuggestions||[]).filter(s=>!alreadyRecorded(s));
       ch.relationshipMilestoneScanThroughMessageId=msgs[chunk.end-1].id;
@@ -498,7 +515,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
         `Up to date through message ${chunk.end}. New replies will be checked automatically.`;
       ch.updatedAt=stamp();save();renderAllBits();renderAutoStatus();
       // Backfill updates history quietly; live events retain the celebration.
-      if(!catchup && last)showCeremony({...last,line:added>1?`${added} new relationship milestones recorded.`:last.line});
+      if(!catchup && last)flushCelebrations();
     }catch(err){
       ch.relationshipMilestoneAutoRetryAt=Date.now()+30*60*1000;
       ch.relationshipMilestoneAutoStatus=`Automatic scan paused for 30 minutes: ${err?.message||String(err)}. Saved progress is retained.`;
@@ -766,7 +783,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   </section>
 </div>
 
-<div id="relationshipMilestoneCeremony" class="rm-ceremony-backdrop hidden" role="dialog" aria-modal="true">
+<div id="relationshipMilestoneCeremony" class="rm-ceremony-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="rmCeremonyTitle" aria-describedby="rmCeremonyLine">
   <div class="rm-stars" aria-hidden="true"><i>✦</i><i>✧</i><i>⋆</i><i>✦</i><i>✧</i><i>⋆</i></div>
   <section class="rm-ceremony-card">
     <div class="rm-ceremony-kicker">✨ 🖤 RELATIONSHIP MILESTONE 🖤 ✨</div>
@@ -853,6 +870,23 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   else boot();
 
   window.addEventListener('pageshow',buildUI);
+  document.addEventListener('visibilitychange',flushCelebrations);
+  document.addEventListener('keydown',event=>{
+    const modal=$('#relationshipMilestoneCeremony');
+    if(!modal || modal.classList.contains('hidden'))return;
+    if(event.key==='Escape'){event.preventDefault();closeCeremony();}
+    if(event.key==='Tab'){
+      const first=$('#rmViewHistory'),last=$('#rmContinue');
+      if(event.shiftKey && document.activeElement===first){event.preventDefault();last.focus();}
+      else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first.focus();}
+    }
+  });
+  new MutationObserver(()=>{
+    const modal=$('#relationshipMilestoneCeremony');
+    if(ceremonyChat && ceremonyChat!==getChat() && modal && !modal.classList.contains('hidden'))closeCeremony();
+    flushCelebrations();
+  }).observe(document.querySelector('main'),{subtree:true,attributes:true,attributeFilter:['class']});
+  setTimeout(flushCelebrations,0);
   setInterval(autoScan,120000);
   setTimeout(autoScan,10000);
   new MutationObserver(()=>{
@@ -865,6 +899,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
     presets:PRESETS,
     open:openPanel,
     test:testCeremony,
+    show:showCeremony,
     add:addMilestone,
     history,
     autoScan,

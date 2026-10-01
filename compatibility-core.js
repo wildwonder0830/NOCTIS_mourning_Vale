@@ -77,6 +77,11 @@
     if(!c.id && typeof uid === "function") c.id = uid();
     CHARACTER_STRING_FIELDS.forEach(k => { if(typeof c[k] !== "string") c[k] = ""; });
     c.lore = arr(c.lore);
+    c.loveInterests = arr(c.loveInterests).map(x => ({
+      id: x?.id || (typeof uid === "function" ? uid() : String(Date.now())),
+      name: str(x?.name), role: str(x?.role), dynamic: str(x?.dynamic),
+      voice: str(x?.voice), continuity: str(x?.continuity), updatedAt: x?.updatedAt || ""
+    }));
     c.chats = arr(c.chats).map(ensureChat);
     c.phoneContacts = arr(c.phoneContacts);
     if(!c.chats.length && typeof newChat === "function") c.chats.push(newChat());
