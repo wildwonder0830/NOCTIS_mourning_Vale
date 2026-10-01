@@ -124,12 +124,12 @@ test('generated draft never overwrites text typed while waiting',async t=>{
  assert.equal(h.w.document.getElementById('messageInput').value,'My own writing');
  assert.match(h.run('activeChat().messages.at(-1).text'),/SAVED DRAFT/);
 });
-test('phone markers preserve unknown-contact texts until the contact exists',async t=>{
+test('phone markers remain visible in story for known and unknown contacts',async t=>{
  const h=await app(t);h.run(`activeCharacter().phoneContacts=[{id:'known',name:'Known'}];activeChat().messages=[{id:'phone-event',role:'assistant',text:'[[PHONE:Known]]Hello[[/PHONE]] [[PHONE:Unknown]]Keep me[[/PHONE]]'}];renderMessages();`);
  assert.match(h.run('activeChat().messages[0].text'),/Keep me/);
- assert.equal(h.run('activeChat().phoneThreads.known.length'),1);
- h.run(`activeCharacter().phoneContacts.push({id:'unknown',name:'Unknown'});renderMessages();renderMessages();`);
- assert.equal(h.run('activeChat().phoneThreads.unknown.length'),1);
+ assert.equal(h.w.document.querySelectorAll('.inline-story-text').length,2);
+ assert.equal(h.run('(activeChat().phoneThreads.known||[]).length'),0);
+ h.run('renderMessages()');assert.equal(h.w.document.querySelectorAll('.inline-story-text').length,2);
 });
 test('clearing a group conversation leaves the direct conversation intact',async t=>{
  const h=await app(t);h.w.document.getElementById('createBestieTrioBtn').click();
