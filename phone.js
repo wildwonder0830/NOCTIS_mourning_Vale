@@ -607,7 +607,7 @@ ${social||"(none)"}`;
   function saveUsage(u){localStorage.setItem(USAGE_KEY,JSON.stringify(u))}
   function modelRate(model){if(String(model||"").endsWith(":free")||model==="openrouter/free")return {input:0,output:0};return RATE_TABLE[model]||null}
   function recordUsage(data,model){const u=data?.usage;if(!u)return;const input=Number(u.prompt_tokens??u.input_tokens??0),output=Number(u.completion_tokens??u.output_tokens??0);if(!input&&!output)return;const db=loadUsage(),key=monthKey();db[key]=db[key]||{input:0,output:0,cost:0,requests:0,byModel:{}};const row=db[key],rate=modelRate(model),cost=rate?((input/1e6)*rate.input+(output/1e6)*rate.output):0;row.input+=input;row.output+=output;row.cost+=cost;row.requests+=1;row.byModel[model]=row.byModel[model]||{input:0,output:0,cost:0,requests:0};row.byModel[model].input+=input;row.byModel[model].output+=output;row.byModel[model].cost+=cost;row.byModel[model].requests+=1;saveUsage(db);renderUsagePanel()}
-  function renderUsagePanel(){const host=$("usagePanel");if(!host)return;const db=loadUsage(),row=db[monthKey()]||{input:0,output:0,cost:0,requests:0};const budget=Number(settings.monthlyBudgetUsd||0),remaining=budget>0?Math.max(0,budget-row.cost):null;host.innerHTML=`<div class="usage-grid"><div><strong>${row.requests||0}</strong><span>model requests</span></div><div><strong>${Math.round(row.input||0).toLocaleString()}</strong><span>input tokens</span></div><div><strong>${Math.round(row.output||0).toLocaleString()}</strong><span>output tokens</span></div><div><strong>$${Number(row.cost||0).toFixed(2)}</strong><span>tracked paid cost</span></div></div><p class="hint">${budget>0?`App budget: $${budget.toFixed(2)} • approximately $${remaining.toFixed(2)} remaining.`:"Set a monthly app budget below if you want Noctis to block paid generations after the tracked total reaches it."}</p><p class="hint tiny">Free models record tokens at $0. Paid cost tracking currently knows the Nemotron 3 Ultra paid rate discussed for Noctis; provider billing remains authoritative.</p>`;const budgetInput=$("monthlyBudgetUsd");if(budgetInput&&document.activeElement!==budgetInput)budgetInput.value=settings.monthlyBudgetUsd||""}
+  function renderUsagePanel(){const host=$("usagePanel");if(!host)return;const db=loadUsage(),row=db[monthKey()]||{input:0,output:0,cost:0,requests:0};const budget=Number(settings.monthlyBudgetUsd||0),remaining=budget>0?Math.max(0,budget-row.cost):null;host.innerHTML=`<div class="usage-grid"><div><strong>${row.requests||0}</strong><span>model requests</span></div><div><strong>${Math.round(row.input||0).toLocaleString()}</strong><span>input tokens</span></div><div><strong>${Math.round(row.output||0).toLocaleString()}</strong><span>output tokens</span></div><div><strong>$${Number(row.cost||0).toFixed(2)}</strong><span>tracked paid cost</span></div></div><p class="hint">${budget>0?`App budget: $${budget.toFixed(2)} • approximately $${remaining.toFixed(2)} remaining.`:"Set a monthly app budget below if you want Noctis to block paid generations after the tracked total reaches it."}</p><p class="hint tiny">Free models record tokens at $0. Paid cost tracking currently knows the Nemotron 3 Ultra paid rate discussed for Noctis; provider billing remains authoritative.</p>`;const budgetInput=$("monthlyBudgetUsd");if(budgetInput&&document.activeElement!==budgetInput)budgetInput.value=settings.monthlyBudgetUsd||"";window.NoctisDailyUsage?.render()}
 
   const baseCompileSystemPrompt=compileSystemPrompt;
   compileSystemPrompt=function(){const base=baseCompileSystemPrompt();const recent=recentPhoneContext(activeChat(),6);return recent?`${base}\n\nRECENT CANONICAL PHONE / TEXT CONTEXT\n${recent}`:base};
@@ -616,7 +616,27 @@ ${social||"(none)"}`;
   openRouterRequest=async function(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){const rate=modelRate(settings.model),budget=Number(settings.monthlyBudgetUsd||0);if(rate&&budget>0){const row=loadUsage()[monthKey()]||{cost:0};if(Number(row.cost||0)>=budget)throw new Error(`Monthly Noctis paid-model budget of $${budget.toFixed(2)} has been reached. Switch to a free model or raise the budget in Settings.`)}return baseOpenRouterRequest(messages,maxTokens,temperature)};
 
   const nativeFetch=window.fetch.bind(window);
-  window.fetch=async function(...args){const modelAtCall=settings?.model||"";const res=await nativeFetch(...args);try{const url=String(args?.[0]||"");if(url.includes("openrouter.ai/api/v1/chat/completions")){const cloneRes=res.clone();cloneRes.json().then(data=>recordUsage(data,modelAtCall)).catch(()=>{})}}catch{}return res};
+  window.fetch=async function(...args){
+    const startedAt=Date.now();
+    const url=String(args[0]?.url||args[0]||"");
+    const isCompletion=url==="https://openrouter.ai/api/v1/chat/completions";
+    let modelAtCall=settings?.model||"";
+    try{modelAtCall=JSON.parse(args[1]?.body||"{}").model||modelAtCall;}catch{}
+    try{
+      const res=await nativeFetch(...args);
+      if(isCompletion){
+        res.clone().json().then(data=>{
+          const ok=res.ok&&!data?.error;
+          try{if(ok)recordUsage(data,modelAtCall);}catch{}
+          window.NoctisDailyUsage?.record(data,modelAtCall,ok,startedAt);
+        }).catch(()=>window.NoctisDailyUsage?.record(null,modelAtCall,res.ok,startedAt));
+      }
+      return res;
+    }catch(err){
+      if(isCompletion)window.NoctisDailyUsage?.record(null,modelAtCall,false,startedAt);
+      throw err;
+    }
+  };
 
   const baseRenderMessages=renderMessages;
   renderMessages=function(){baseRenderMessages();try{const ch=activeChat(),userMsgs=ch.messages.filter(m=>m.role==="user"&&!m.error);document.querySelectorAll("#messages .message.user").forEach((node,i)=>{const msg=userMsgs[i],tools=node.querySelector(".message-tools");if(!msg||!tools||tools.querySelector(".delete-everywhere"))return;const b=document.createElement("button");b.type="button";b.className="ghost danger delete-everywhere";b.textContent="Delete";b.addEventListener("click",()=>{if(!confirm("Delete this post from the transcript? If it was already inside compact memory, Noctis will invalidate that compact summary so it cannot keep stale history."))return;const conv=getConversationMessages(ch),cutoffIndex=ch.consolidatedThroughMessageId?conv.findIndex(x=>x.id===ch.consolidatedThroughMessageId):-1,msgIndex=conv.findIndex(x=>x.id===msg.id);ch.messages=ch.messages.filter(x=>x.id!==msg.id);if(cutoffIndex>=0&&msgIndex>=0&&msgIndex<=cutoffIndex){ch.consolidatedMemory="";ch.consolidatedThroughMessageId=null}ch.pendingMilestone=false;ch.updatedAt=now();saveVault();renderMessages();renderConsolidatedMemory();renderMemoryInspector()});tools.appendChild(b)})}catch{}renderMemoryInspector()};

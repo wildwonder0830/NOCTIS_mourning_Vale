@@ -11,7 +11,7 @@ async function boot(seed={}){
   w.alert=m=>alerts.push(m);w.confirm=()=>true;w.prompt=()=>null;
   w.scrollTo=()=>{};w.HTMLElement.prototype.scrollTo=function(o){this.scrollTop=o.top;};w.HTMLElement.prototype.scrollIntoView=()=>{};
   w.setInterval=()=>0;
-  w.fetch=async (...args)=>{requests.push(args);throw new Error('Network disabled in tests');};
+  w.fetch=async (...args)=>{requests.push(args);if(w.__fetchMock)return w.__fetchMock(...args);throw new Error('Network disabled in tests');};
   w.URL.createObjectURL=()=> 'blob:test';w.URL.revokeObjectURL=()=>{};
   for(const [k,v] of Object.entries(seed))w.localStorage.setItem(k,JSON.stringify(v));
   const run=s=>vm.runInContext(s,ctx);
