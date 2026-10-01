@@ -168,22 +168,15 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
 @media(max-width:620px){.field-grid{grid-template-columns:1fr}.persona-slot{padding:9px 11px}}
 
 
-/* v0.7.1 — reliable mobile header + always-accessible latest-message button */
-.topbar{
-  max-height:220px;
-  overflow:hidden;
-  transition:max-height .22s ease,padding .22s ease,opacity .18s ease,transform .22s ease,border-color .18s ease;
-}
+/* Preserve the header's layout space while it slides out of view. */
+.topbar{transition:transform .22s ease,opacity .18s ease}
 body.chrome-hidden .topbar{
-  max-height:0!important;
-  padding-top:0!important;
-  padding-bottom:0!important;
-  border-bottom-color:transparent!important;
-  transform:translateY(-12px)!important;
-  opacity:0!important;
-  pointer-events:none!important;
+  transform:translateY(-110%);
+  opacity:0;
+  pointer-events:none;
 }
-body.chrome-hidden .tabs{top:0!important}
+body.chrome-hidden .tabs{top:0}
+@media(prefers-reduced-motion:reduce){.topbar,.tabs{transition:none}}
 
 .scroll-bottom{
   position:fixed!important;
