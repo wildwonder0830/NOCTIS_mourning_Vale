@@ -888,100 +888,53 @@ function updateScrollBottomButton(){
   scrollBottomBtn.setAttribute("aria-label",alreadyThere?"Already at latest message":"Scroll to latest message");
 }
 function scrollMessagesToBottom(behavior="smooth"){
-  if(messagesEl){
+  // Move only the transcript when it owns scrolling; avoid two competing animations.
+  if(messagesScrollable()){
     messagesEl.scrollTo({top:messagesEl.scrollHeight,behavior});
-  }
-  const composer=document.querySelector(".composer-dock");
-  if(composer){
-    // Safari sometimes ignores an internal scroller when the page itself is
-    // also scrolled. Bring the composer into view too.
-    setTimeout(()=>composer.scrollIntoView({behavior,block:"end"}),30);
+  }else{
+    document.querySelector(".composer-dock")?.scrollIntoView({behavior,block:"end"});
   }
   setTimeout(updateScrollBottomButton,260);
 }
 if(scrollBottomBtn)scrollBottomBtn.addEventListener("click",()=>scrollMessagesToBottom("smooth"));
 
+// One scroll update per frame. Hiding chrome must never change document height.
 let lastPageY=documentScrollTop();
 let lastMessageY=messagesEl?.scrollTop||0;
-let lastTouchY=null;
 let chromeHidden=false;
-let revealTimer=null;
-
+let scrollFrame=null;
 function setChromeHidden(hidden){
-  if(!topbarEl)return;
+  if(!topbarEl || chromeHidden===hidden)return;
   chromeHidden=hidden;
   document.body.classList.toggle("chrome-hidden",hidden);
 }
-function showChromeTemporarily(){
-  setChromeHidden(false);
-  clearTimeout(revealTimer);
-  // If the user is in Chat and not at the very top, the header goes away
-  // again after a short pause so it does not eat screen space.
-  if(chatViewActive() && documentScrollTop()>28){
-    revealTimer=setTimeout(()=>setChromeHidden(true),1100);
-  }
-}
 function reactToScrollDirection(current,previous,source){
-  const delta=current-previous;
-  if(Math.abs(delta)<3)return;
-
-  const nearTop = source==="page" ? current<22 : (current<8 && documentScrollTop()<22);
-  if(nearTop){
-    setChromeHidden(false);
-    return;
-  }
-
-  if(delta>0){
-    // Scrolling down = maximize reading space.
-    setChromeHidden(true);
-  }else{
-    // Scrolling up = reveal controls.
-    showChromeTemporarily();
-  }
+  const nearTop=source==="page" ? current<22 : current<8 && documentScrollTop()<22;
+  if(nearTop){setChromeHidden(false);return true;}
+  if(Math.abs(current-previous)<12)return false;
+  setChromeHidden(current>previous);
+  return true;
 }
-
-window.addEventListener("scroll",()=>{
-  const current=documentScrollTop();
-  reactToScrollDirection(current,lastPageY,"page");
-  lastPageY=current;
-  updateScrollBottomButton();
-},{passive:true});
-
-if(messagesEl){
-  messagesEl.addEventListener("scroll",()=>{
-    const current=messagesEl.scrollTop;
-    reactToScrollDirection(current,lastMessageY,"messages");
-    lastMessageY=current;
+function scheduleScrollUpdate(){
+  if(scrollFrame!==null)return;
+  scrollFrame=requestAnimationFrame(()=>{
+    scrollFrame=null;
+    const pageY=Math.max(0,documentScrollTop());
+    const messageY=Math.max(0,messagesEl?.scrollTop||0);
+    if(pageY!==lastPageY && reactToScrollDirection(pageY,lastPageY,"page"))lastPageY=pageY;
+    if(messageY!==lastMessageY && reactToScrollDirection(messageY,lastMessageY,"messages"))lastMessageY=messageY;
     updateScrollBottomButton();
-  },{passive:true});
+  });
 }
-
-// Mobile Safari can move the page without producing a useful scroll delta
-// soon enough, so also watch the finger direction.
-document.addEventListener("touchstart",e=>{
-  lastTouchY=e.touches?.[0]?.clientY ?? null;
-},{passive:true});
-
-document.addEventListener("touchmove",e=>{
-  if(lastTouchY===null)return;
-  const y=e.touches?.[0]?.clientY;
-  if(typeof y!=="number")return;
-  const fingerDelta=y-lastTouchY;
-  if(Math.abs(fingerDelta)>5){
-    // Finger moving up means content is moving down / user is scrolling down.
-    if(fingerDelta<0 && (documentScrollTop()>20 || (messagesEl?.scrollTop||0)>8)){
-      setChromeHidden(true);
-    }else if(fingerDelta>0){
-      showChromeTemporarily();
-    }
-    lastTouchY=y;
-  }
-},{passive:true});
-
-document.addEventListener("touchend",()=>{lastTouchY=null},{passive:true});
+window.addEventListener("scroll",scheduleScrollUpdate,{passive:true});
+messagesEl?.addEventListener("scroll",scheduleScrollUpdate,{passive:true});
+let renderedChatId=null;
 
 function renderMessages(){
   const c=activeCharacter(),ch=activeChat();
+  const previousTop=messagesEl.scrollTop;
+  const followLatest=renderedChatId!==ch.id || isMessagesNearBottom();
+  renderedChatId=ch.id;
   messagesEl.innerHTML="";
   ch.messages.forEach((msg,index)=>{
     if(msg.error && /^Connection error: Rate limit exceeded/i.test(msg.text||""))return;
@@ -1021,7 +974,9 @@ function renderMessages(){
     if(msg.edited){const edited=document.createElement("div");edited.className="meta";edited.textContent="EDITED";wrap.append(edited)}
     messagesEl.appendChild(wrap);
   });
-  messagesEl.scrollTop=messagesEl.scrollHeight;lastMessageScrollTop=messagesEl.scrollTop;updateScrollBottomButton();
+  messagesEl.scrollTop=followLatest?messagesEl.scrollHeight:previousTop;
+  lastMessageY=messagesEl.scrollTop;
+  updateScrollBottomButton();
 }
 function compileSystemPrompt(){
   const c=activeCharacter(),ch=activeChat();

@@ -243,9 +243,13 @@ textarea {
     width: 100%;
     max-width: 100%;
     overflow-x: hidden;
-    overflow-y: visible;
-    -webkit-overflow-scrolling: auto;
-    overscroll-behavior: auto;
+    /* Keep a single, bounded transcript scroller; Safari toolbar movement
+       must not resize it on every frame. */
+    min-height: min(380px, 62svh);
+    max-height: 62svh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
 
   .messages > * {
