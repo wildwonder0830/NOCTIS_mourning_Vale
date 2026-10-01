@@ -30,7 +30,8 @@
     const baseApiMessages = apiMessages;
     apiMessages = function(extraSystem = "") {
       const out = baseApiMessages(extraSystem);
-      const recent = getRecentPhoneContinuity(4);
+      // Phone context is already included once by compileSystemPrompt in phone.js.
+      const recent = '';
       if (recent) {
         out.push({
           role: "system",

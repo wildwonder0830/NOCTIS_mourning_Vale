@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.0';
+  const VERSION = '1.3.1';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -444,7 +444,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
     if(review){const n=ch?.relationshipMilestoneAutoSuggestions?.length||0;review.hidden=!n;review.textContent=`Review ${n} uncertain milestone${n===1?'':'s'}`;}
     if(toggle)toggle.checked=settings.autoRelationshipMilestones!==false;
     if(el)el.textContent=settings.autoRelationshipMilestones===false?'Automatic scans paused.':
-      (ch?.relationshipMilestoneAutoStatus||'Automatically catches up this chat, then checks new replies. Uses your selected model and credits. Only high-confidence events are saved.');
+      (ch?.relationshipMilestoneAutoStatus||'Catches up this chat, then checks batches of 12 new messages. Maximum 4 automatic batches per UTC day across chats. Uses your selected model and credits. Only high-confidence events are saved.');
   }
 
   async function autoScan(){
@@ -457,12 +457,21 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
     if(!ch || !msgs.length || Date.now()<Number(ch.relationshipMilestoneAutoRetryAt||0))return;
     const start=scanStartIndex(msgs);
     if(start>=msgs.length)return;
+    // Batch live detection and bound background use across all chats in this browser.
+    if(ch.relationshipMilestoneAutoCaughtUp && msgs.length-start<12){
+      ch.relationshipMilestoneAutoStatus=`Waiting to batch 12 new messages (${msgs.length-start}/12).`;renderAutoStatus();return;
+    }
+    const day=new Date().toISOString().slice(0,10);
+    let budget;try{budget=JSON.parse(localStorage.getItem('noctis-milestone-auto-budget')||'null');}catch{}
+    if(!budget||budget.day!==day)budget={day,count:0};
+    if(budget.count>=4){ch.relationshipMilestoneAutoStatus='Automatic daily scan budget used (4 batches). Story replies remain available if your provider allows them. Catch-up resumes tomorrow; manual sync is available.';renderAutoStatus();return;}
     if(!ch.relationshipMilestoneAutoCatchupTarget)ch.relationshipMilestoneAutoCatchupTarget=msgs.at(-1).id;
     const catchup=!ch.relationshipMilestoneAutoCaughtUp;
     const chunk=buildChunks(msgs,Math.max(0,start-SCAN_OVERLAP))[0];
     // Ensure a long overlap cannot prevent forward progress.
     if(chunk.end<=start){chunk.start=start;chunk.end=buildChunks(msgs,start)[0].end;}
     scanBusy=true;
+    budget.count++;localStorage.setItem('noctis-milestone-auto-budget',JSON.stringify(budget));
     ch.relationshipMilestoneAutoStatus=`${catchup?'Catching up':'Checking new replies'}: reading through message ${chunk.end} of ${msgs.length}…`;
     save();renderAutoStatus();
     try{
@@ -844,7 +853,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   else boot();
 
   window.addEventListener('pageshow',buildUI);
-  setInterval(autoScan,30000);
+  setInterval(autoScan,120000);
   setTimeout(autoScan,10000);
   new MutationObserver(()=>{
     hideSync();
