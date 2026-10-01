@@ -109,7 +109,7 @@
 
   function audit(){
     const required = [
-      "app.js","phone.js","phone-fix.js","stats.js","social.js",
+      "app.js","phone.js","phone-fix.js","stats.js",
       "phone-rp-sync.js","physical-fields.js","import-fix.js","runtime-fixes.js",
       "compatibility-core.js","merge-sync.js","backup-format-fix.js","profile-sheet.js","character-replacement.js","build-version.js"
     ];
