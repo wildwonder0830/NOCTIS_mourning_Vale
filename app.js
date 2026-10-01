@@ -46,7 +46,7 @@ function newCharacter(name="New Character"){
   const chat=newChat();
   return {
     id:uid(),name,role:"",personality:"",backstory:"",voice:"",
-    migrationNotes:"",
+    migrationNotes:"",loveInterests:[],
     directives:[
       "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
       "Preserve established canon, scene geography, physical positions, clothing, injuries, objects, and elapsed time.",
@@ -193,6 +193,12 @@ let vault=loadVault();
 function normalizeVaultV07(){
   ensurePersonas(vault);
   (vault.characters||[]).forEach(c=>{
+    if(!Array.isArray(c.loveInterests))c.loveInterests=[];
+    c.loveInterests=c.loveInterests.filter(x=>x&&typeof x==='object').map(x=>({
+      id:x.id||uid(),name:typeof x.name==='string'?x.name:'',role:typeof x.role==='string'?x.role:'',
+      dynamic:typeof x.dynamic==='string'?x.dynamic:'',voice:typeof x.voice==='string'?x.voice:'',
+      continuity:typeof x.continuity==='string'?x.continuity:'',updatedAt:x.updatedAt||now()
+    }));
     (c.chats||[]).forEach(ch=>{
       ch.messages=Array.isArray(ch.messages)?ch.messages:[];
       ch.messages.forEach(m=>{if(!m.id)m.id=uid()});
@@ -402,6 +408,7 @@ function renderBasics(){
   $("charBackstory").value=c.backstory||"";$("charVoice").value=c.voice||"";$("charDirectives").value=c.directives||"";
   $("memoryPermanent").value=c.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
   if($("migrationNotes"))$("migrationNotes").value=c.migrationNotes||"";
+  renderLoveInterests();
   $("sceneLocation").value=ch.scene.location||"";$("sceneTime").value=ch.scene.time||"";
   $("sceneState").value=ch.scene.state||"";$("sceneEmotion").value=ch.scene.emotion||"";
   $("chatCharacterName").textContent=c.name||"Noctis";$("characterEditorTitle").textContent=c.name||"Character";
@@ -413,6 +420,25 @@ function renderBasics(){
   if($("autoMemory"))$("autoMemory").checked=settings.autoMemory!==false;
   updateConnectionStatus();
   updateMemoryStatus();
+}
+
+function renderLoveInterests(){
+  const host=$("loveInterestList"); if(!host)return;
+  const c=activeCharacter(); if(!Array.isArray(c.loveInterests))c.loveInterests=[];
+  host.innerHTML="";
+  if(!c.loveInterests.length){const empty=document.createElement("p");empty.className="hint love-empty";empty.textContent="No additional love interests yet. Add one when the story becomes an ensemble.";host.append(empty);return}
+  c.loveInterests.forEach((person,index)=>{
+    const card=document.createElement("article");card.className="love-interest-card";
+    card.innerHTML=`<div class="section-title-row"><strong>Love interest ${index+1}</strong><button class="ghost danger small" type="button">Remove</button></div>
+      <div class="field-grid"><label>Name<input class="li-name" placeholder="Name" /></label><label>Role / identity<input class="li-role" placeholder="Vampire, rival, husband…" /></label></div>
+      <label>Relationship dynamic<input class="li-dynamic" placeholder="Fated mate, rival, second chance…" /></label>
+      <label>Voice &amp; behavior<textarea class="li-voice" rows="3" placeholder="How this person speaks, acts, and differs from the others."></textarea></label>
+      <label>Continuity notes<textarea class="li-continuity" rows="3" placeholder="Promises, boundaries, history, current status…"></textarea></label>`;
+    const map={".li-name":"name",".li-role":"role",".li-dynamic":"dynamic",".li-voice":"voice",".li-continuity":"continuity"};
+    Object.entries(map).forEach(([selector,key])=>{const input=card.querySelector(selector);input.value=person[key]||"";input.addEventListener("input",e=>{person[key]=e.target.value;person.updatedAt=now();saveVault()})});
+    card.querySelector("button").addEventListener("click",()=>{c.loveInterests.splice(index,1);c.updatedAt=now();saveVault();renderLoveInterests()});
+    host.append(card);
+  });
 }
 
 function syncFilename(){
@@ -493,6 +519,11 @@ function bindBasics(){
   }));
   $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;activeCharacter().updatedAt=now();saveVault()});
   if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;activeCharacter().updatedAt=now();saveVault()});
+  if($("addLoveInterestBtn"))$("addLoveInterestBtn").addEventListener("click",()=>{
+    const c=activeCharacter();if(!Array.isArray(c.loveInterests))c.loveInterests=[];
+    c.loveInterests.push({id:uid(),name:"",role:"",dynamic:"",voice:"",continuity:"",updatedAt:now()});
+    c.updatedAt=now();saveVault();renderLoveInterests();
+  });
   $("memoryRelationship").addEventListener("input",e=>{activeChat().relationshipMemory=e.target.value;activeChat().updatedAt=now();saveVault()});
   [["sceneLocation","location"],["sceneTime","time"],["sceneState","state"],["sceneEmotion","emotion"]].forEach(([id,key])=>$(id).addEventListener("input",e=>{activeChat().scene[key]=e.target.value;activeChat().updatedAt=now();saveVault()}));
   $("apiKey").addEventListener("input",e=>{settings.apiKey=e.target.value.trim();saveSettings();updateConnectionStatus()});
@@ -945,6 +976,7 @@ function renderMessages(){
 
     const wrap=document.createElement("div");
     wrap.className=`message ${msg.role}${msg.error?" error":""}`;
+    wrap.dataset.messageId=msg.id;
     const meta=document.createElement("div");meta.className="meta";
     meta.textContent=msg.role==="user"?"YOU":(c.name||"NOCTIS").toUpperCase();
     const body=document.createElement("div");body.className="message-body";body.textContent=msg.text;
@@ -973,6 +1005,7 @@ function renderMessages(){
     if(msg.edited){const edited=document.createElement("div");edited.className="meta";edited.textContent="EDITED";wrap.append(edited)}
     messagesEl.appendChild(wrap);
   });
+  window.NoctisStoryPresentation?.decorate(messagesEl,ch);
   messagesEl.scrollTop=followLatest?messagesEl.scrollHeight:previousTop;
   lastMessageY=messagesEl.scrollTop;
   updateScrollBottomButton();
@@ -981,6 +1014,11 @@ function compileSystemPrompt(){
   const c=activeCharacter(),ch=activeChat();
   const lore=c.lore.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
   const threads=ch.threads.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
+  const loveInterests=(c.loveInterests||[]).filter(x=>x.name||x.role||x.dynamic||x.voice||x.continuity).map((x,i)=>`${i+1}. ${x.name||"Unnamed love interest"}
+Role / identity: ${x.role||"(unspecified)"}
+Relationship dynamic: ${x.dynamic||"(unspecified)"}
+Voice & behavior: ${x.voice||"(unspecified)"}
+Continuity notes: ${x.continuity||"(none)"}`).join("\n\n")||"(none — this is a single-interest or non-romantic story)";
   return `You are performing the roleplay character or cast named ${c.name || "the character"}.
 
 CHARACTER / CAST ROLE
@@ -1015,6 +1053,12 @@ ${ch.title || "Main Story"}
 
 CAST FOCUS
 ${ch.castFocus || "(none — use the full active cast as appropriate)"}
+
+LOVE INTERESTS / ROMANTIC ENSEMBLE
+${loveInterests}
+- When more than one love interest is listed, keep each person's voice, knowledge, motives, relationship history, jealousy, boundaries, and physical position distinct.
+- Do not merge love interests into one interchangeable voice or make one person speak for another.
+- Preserve the user's agency in every relationship and never decide which person the protagonist chooses.
 
 CURRENT SCENE
 Location: ${ch.scene.location || "(unspecified)"}

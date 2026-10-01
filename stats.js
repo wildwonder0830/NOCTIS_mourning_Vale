@@ -394,7 +394,7 @@ ${transcript(newMsgs)}`;
     let changed=false;
     (ch.messages||[]).forEach(msg=>{
       if(msg?.role!=="assistant" || typeof msg.text!=="string") return;
-      const cleaned=sanitizeForbiddenShifterAnatomy(stripMessySingleStars(msg.text));
+      const cleaned=sanitizeForbiddenShifterAnatomy(window.NoctisStoryPresentation?msg.text:stripMessySingleStars(msg.text));
       if(cleaned!==msg.text){
         msg.text=cleaned;
         msg.cleanedFormatting=true;
@@ -407,6 +407,7 @@ ${transcript(newMsgs)}`;
   function safeBoldActions(root){
     if(!root)return;
     root.querySelectorAll(".message-body").forEach(el=>{
+      if(el.dataset.storyFormatted)return;
       const txt=el.textContent||"";
       if(window.NoctisInlineTexts && /\[\[PHONE:/i.test(txt)){window.NoctisInlineTexts.format(el,txt);return;}
       if(!txt.includes("**"))return;
