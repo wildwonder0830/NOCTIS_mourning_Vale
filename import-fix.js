@@ -273,6 +273,10 @@
       imported.push(`${normalizedChats.length} complete timeline${normalizedChats.length===1?"":"s"}`);
     }
 
+    for(const k of ["species","height","weight","build","eyeColor","hairColor","hairStyle","skinTone","distinguishingFeatures","apparentAge","actualAge","currentForm"]){
+      if(typeof src[k]==="string")c[k]=src[k];
+    }
+    if(src.profileSheet && typeof src.profileSheet==="object")c.profileSheet=clone(src.profileSheet);
     c.updatedAt=now();
     ch.updatedAt=now();
     saveVault();
@@ -298,17 +302,19 @@
 
     const parsed=JSON.parse(raw);
 
-    /* Full Noctis sync or vault backup. */
-    if(parsed?.format==="noctis-sync" && parsed?.vault?.characters){
-      vault=parsed.vault;
-      normalizeVaultV07();saveVault();renderAll();
-      alert(`Vault import complete: ${vault.characters.length} character entr${vault.characters.length===1?"y":"ies"}.`);
+    // Route by content once; async document listeners cannot cancel an event
+    // after awaiting file.text(). Never let replacement files reach card import.
+    if(window.NoctisCharacterReplacement?.isReplacement(parsed)){
+      window.NoctisCharacterReplacement.importParsed(parsed);
       return;
     }
-    if(Array.isArray(parsed?.characters)){
-      vault=parsed;
-      normalizeVaultV07();saveVault();renderAll();
-      alert(`Vault import complete: ${vault.characters.length} character entr${vault.characters.length===1?"y":"ies"}.`);
+    if(window.NoctisMerge?.vaultFrom(parsed)){
+      const ok=await window.NoctisMerge.mergeFile(file);
+      if(ok)alert("Backup merged. Unique chats and messages from both devices were preserved.");
+      return;
+    }
+    if(parsed?.format==="noctis-persona" || parsed?.persona){
+      window.NoctisProfileSheet.importPersona(parsed);
       return;
     }
 
@@ -322,9 +328,7 @@
 
     if(isPersonaJson(parsed)){
       const src=parsed?.persona&&typeof parsed.persona==="object"?parsed.persona:parsed;
-      const p=applyPersonaImport(src);
-      renderAll();
-      alert(`Persona imported into slot ${p.slot}: ${p.name||`Persona ${p.slot}`}`);
+      window.NoctisProfileSheet.importPersona(parsed);
       return;
     }
 

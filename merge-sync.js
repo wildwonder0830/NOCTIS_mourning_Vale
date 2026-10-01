@@ -10,12 +10,16 @@
   }
 
   function mergeMessages(a = [], b = []){
-    const out = [], seen = new Set();
+    const out = [], seen = new Map();
     for(const m of [...a, ...b]){
       if(!m) continue;
       const k = msgKey(m);
-      if(seen.has(k)) continue;
-      seen.add(k);
+      if(seen.has(k)){
+        const i=seen.get(k), existing=out[i];
+        if(stamp(m.editedAt||m.updatedAt)>stamp(existing.editedAt||existing.updatedAt))out[i]=copy(m);
+        continue;
+      }
+      seen.set(k,out.length);
       out.push(copy(m));
     }
     out.sort((x,y) => {
@@ -134,9 +138,23 @@
   function mergeVaults(local, incoming){
     const out = {...copy(local)};
 
-    out.personas = mergeArray(local?.personas || [], incoming?.personas || [], mergePersona,
-      x => String(x?.slot || ""))
-      .sort((x,y) => Number(x?.slot || 0) - Number(y?.slot || 0));
+    // Persona slots are device-independent; IDs from a fresh device differ.
+    // Keep local IDs and remap imported chat references to the merged slots.
+    const personaIds=new Map();
+    out.personas=(local.personas||[]).map(copy);
+    for(const p of incoming.personas||[]){
+      const existing=out.personas.find(x=>Number(x.slot)===Number(p.slot));
+      if(existing){
+        const id=existing.id;
+        Object.assign(existing,mergePersona(existing,p),{id});
+        personaIds.set(p.id,id);
+      }else{out.personas.push(copy(p));personaIds.set(p.id,p.id);}
+    }
+    incoming=copy(incoming);
+    for(const c of incoming.characters||[])for(const ch of c.chats||[]){
+      ch.activePersonaId=personaIds.get(ch.activePersonaId)||ch.activePersonaId;
+    }
+    out.personas.sort((a,b)=>Number(a.slot)-Number(b.slot));
 
     out.characters = mergeArray(local?.characters || [], incoming?.characters || [], mergeCharacter,
       x => String(x?.name || "").toLowerCase());
@@ -173,6 +191,10 @@
     const incoming = vaultFrom(parsed);
     if(!incoming) throw new Error("That file is not a Noctis vault/sync file.");
 
+    if(!Array.isArray(incoming.characters) || !incoming.characters.length ||
+       incoming.characters.some(c=>!c || !Array.isArray(c.chats) || c.chats.some(ch=>!ch || !Array.isArray(ch.messages)))){
+      throw new Error("Backup has invalid character or timeline data. Nothing was imported.");
+    }
     const here = counts(vault), there = counts(incoming);
     if(confirmFirst && !confirm(
       `Merge this file with the current device?\n\n` +
@@ -272,48 +294,8 @@
   }
 
 
-  function interceptTopBarVaultImports(){
-    if(document.documentElement.dataset.noctisVaultMergeIntercept === "1") return;
-    document.documentElement.dataset.noctisVaultMergeIntercept = "1";
-
-    /*
-      Backup -> Import is the workflow people naturally use between devices.
-      Intercept files that clearly identify themselves as Noctis vault/sync
-      backups and merge them instead of allowing the older importer to replace
-      the local vault. Character/persona JSON continues to the normal importer.
-    */
-    document.addEventListener("change", async event => {
-      const input = event.target;
-      if(input?.id !== "importInput") return;
-      const file = input.files?.[0];
-      if(!file) return;
-
-      const name = String(file.name || "").toLowerCase();
-      const looksLikeVaultFile =
-        name.includes("noctis-vault") ||
-        name.includes("vault-backup") ||
-        name.startsWith("noctis-sync-");
-
-      if(!looksLikeVaultFile) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-
-      try{
-        const ok = await mergeFile(file, {confirmFirst:true});
-        if(ok) alert("Backup merged. Unique chats and messages from both devices were preserved.");
-      }catch(err){
-        alert(`Could not merge backup: ${err?.message || String(err)}`);
-      }finally{
-        input.value = "";
-      }
-    }, true);
-  }
-
   window.NoctisMerge = { mergeVaults, mergeFile, vaultFrom, counts };
 
-  interceptTopBarVaultImports();
   makeSyncImportMergeByDefault();
   injectOptionalMergeButton();
   new MutationObserver(() => {

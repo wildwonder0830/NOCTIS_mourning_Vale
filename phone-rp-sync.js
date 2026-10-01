@@ -38,18 +38,20 @@
 
   function extractMarkedPhoneEvents(msg){
     const text=String(msg?.text||"");
-    if(!text.includes("[[PHONE:"))return 0;
+    if(!/\[\[PHONE:/i.test(text))return 0;
     let added=0;
     const cleaned=text.replace(/\[\[PHONE:([^\]]+)\]\]([\s\S]*?)\[\[\/PHONE\]\]/gi,(whole,name,body)=>{
       const p=findContact(name);
-      if(p && addIncomingText(p,body,msg.id))added++;
+      if(!p)return whole;
+      addIncomingText(p,body,msg.id);
+      added++;
       return "";
     }).replace(/\n{3,}/g,"\n\n").trim();
 
     if(added){
       msg.text=cleaned;
       msg.phoneEventsSynced=true;
-      activeChat().rpPhoneImportedIds[msg.id]=true;
+      if(!/\[\[PHONE:/i.test(cleaned))activeChat().rpPhoneImportedIds[msg.id]=true;
     }
     return added;
   }
@@ -147,6 +149,7 @@ ${transcript}`;
         {role:"user",content:prompt}
       ],700,0.05);
 
+      if(activeChat()!==ch)throw new Error("Timeline changed during recovery. Please rerun in the original timeline.");
       const rows=parseRecoveryPacket(raw);
       let added=0;
       rows.forEach(row=>{

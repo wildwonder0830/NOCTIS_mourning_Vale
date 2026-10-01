@@ -248,6 +248,7 @@
   }
 
   async function modelFindContacts(allMessages,status){
+    const origin=activeChat();
     const found=[];
     const parts=chunks(allMessages,40,4);
 
@@ -285,12 +286,14 @@ ${transcriptChunk(parts[i])}`;
         {role:"user",content:prompt}
       ],650,0.05);
 
+      if(activeChat()!==origin)throw new Error("Timeline changed during phone sync. Please rerun in the original timeline.");
       found.push(...parseContactPacket(raw));
     }
     return found;
   }
 
   async function modelFindTexts(allMessages,status){
+    const origin=activeChat();
     const rows=[];
     const c=activeCharacter();
     const parts=chunks(allMessages,32,4);
@@ -341,6 +344,7 @@ ${transcriptChunk(parts[i])}`;
         {role:"user",content:prompt}
       ],900,0.05);
 
+      if(activeChat()!==origin)throw new Error("Timeline changed during phone sync. Please rerun in the original timeline.");
       rows.push(...parseTextPacket(raw));
     }
     return rows;
@@ -401,11 +405,17 @@ ${transcriptChunk(parts[i])}`;
         if(!k)return;
         if(!seen.has(k)){seen.set(k,p);return}
         const keep=seen.get(k),drop=p;
-        const keepThread=ch.phoneThreads?.[keep.id]||(ch.phoneThreads[keep.id]=[]);
-        const dropThread=ch.phoneThreads?.[drop.id]||[];
-        dropThread.forEach(m=>{
-          if(!keepThread.some(x=>x.role===m.role&&key(x.text)===key(m.text)))keepThread.push(m);
-        });
+        for(const chat of c.chats||[]){
+          chat.phoneThreads=chat.phoneThreads||{};chat.phoneUnread=chat.phoneUnread||{};
+          const keepThread=chat.phoneThreads[keep.id]||(chat.phoneThreads[keep.id]=[]);
+          for(const m of chat.phoneThreads[drop.id]||[]){
+            if(!keepThread.some(x=>x.id===m.id))keepThread.push(m);
+          }
+          chat.phoneUnread[keep.id]=Number(chat.phoneUnread[keep.id]||0)+Number(chat.phoneUnread[drop.id]||0);
+          delete chat.phoneThreads[drop.id];delete chat.phoneUnread[drop.id];
+          for(const group of chat.phoneGroups||[])group.memberIds=[...new Set((group.memberIds||[]).map(id=>id===drop.id?keep.id:id))];
+        }
+        if(c.activePhoneContactId===drop.id)c.activePhoneContactId=keep.id;
         duplicates.push(drop.id);
       });
       if(duplicates.length){
@@ -467,6 +477,7 @@ ${transcriptChunk(parts[i])}`;
     form.dataset.phoneOutBridge="1";
 
     form.addEventListener("submit",()=>{
+      if(mainGenerationBusy)return;
       const input=document.getElementById("messageInput");
       const event=obviousOutgoingTextEvent(input?.value||"");
       if(!event)return;
