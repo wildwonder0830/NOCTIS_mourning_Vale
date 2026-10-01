@@ -1081,6 +1081,7 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
     model:settings.model||defaultSettings.model,
     messages,
     temperature:Number(temperature??0.85),
+    reasoning:{exclude:true},
     max_tokens:Number(maxTokens??900)
   };
 

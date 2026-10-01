@@ -314,7 +314,7 @@
       thread.forEach(msg=>{
         const row=document.createElement("div");row.className=`phone-message-row ${msg.role==="user"?"mine":"theirs"}`;
         const bubble=document.createElement("div");bubble.className="phone-bubble";
-        bubble.textContent=(msg.role==="assistant"&&msg.author?`${msg.author}: `:"")+msg.text;
+        bubble.textContent=(msg.role==="assistant"&&msg.author?`${msg.author}: `:"")+NoctisPhoneOutput.display(msg);
         row.appendChild(bubble);host.appendChild(row);
       });
       host.scrollTop=host.scrollHeight;
@@ -331,12 +331,12 @@
     const clean=String(text||"").trim();if(!clean)return;
     const thread=groupThread(ch,g);
     thread.push({id:uid(),role:"user",text:clean,createdAt:now()});saveVault();openGroupChat(g.id);
-    const members=(g.memberIds||[]).map(id=>c.phoneContacts.find(p=>p.id===id)).filter(Boolean);
+    const members=(g.memberIds||[]).map(id=>c.phoneContacts.find(p=>p.id===id)).filter(p=>p && NoctisPhoneOutput.named(p));
     const roster=members.map(p=>`${p.name} | ${p.relationship||"friend"} | ${p.textingStyle||"established voice"}`).join("\n");
-    const recent=thread.slice(-12).map(m=>`${m.role==="user"?"PROTAGONIST":(m.author||"FRIEND")}: ${m.text}`).join("\n");
+    const recent=NoctisPhoneOutput.history(thread).slice(-12).map(m=>`${m.role==="user"?"PROTAGONIST":(m.author||"FRIEND")}: ${m.text}`).join("\n");
     const mainRecent=getConversationMessages(ch).slice(-6).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n");
     try{
-      const raw=await openRouterRequest([{role:"system",content:compileSystemPrompt()+`\n\nGROUP CHAT MODE
+      const raw=await openRouterRequest([{role:"system",content:compileSystemPrompt()+`\n\nPHONE / TEXT MESSAGE MODE\nGROUP CHAT MODE\n${NoctisPhoneOutput.instructions}
 Group: ${g.name}
 Members:
 ${roster}
@@ -352,11 +352,14 @@ ${recent||"(none)"}
 
 RECENT MAIN STORY:
 ${mainRecent||"(none)"}`}],420,0.85);
-      String(raw||"").split(/\r?\n/).forEach(line=>{
+      const replies=[];
+      NoctisPhoneOutput.clean(raw).split(/\r?\n/).forEach(line=>{
         const parts=line.split("|");if(parts.length<2)return;
-        const author=parts.shift().trim(),msg=parts.join("|").trim();
-        if(members.some(p=>p.name===author)&&msg)thread.push({id:uid(),role:"assistant",author,text:msg,createdAt:now()});
+        const author=parts.shift().trim(),msg=NoctisPhoneOutput.clean(parts.join("|"));
+        if(members.some(p=>p.name===author)&&msg)replies.push({id:uid(),role:"assistant",author,text:msg,createdAt:now()});
       });
+      if(!replies.length)throw new Error("The model did not return a message from a named group member. You can try again.");
+      thread.push(...replies.slice(0,3));
       ch.updatedAt=now();saveVault();if(activeChat()===ch && $("phoneForm")?.dataset.groupId===g.id)openGroupChat(g.id);
     }catch(err){alert(`Group reply failed: ${err?.message||String(err)}`)}
   }
@@ -515,7 +518,7 @@ ${mainRecent||"(none)"}`}],420,0.85);
       }
       if(nowMs<Number(ch.nextAmbientTextAt))return;
 
-      const eligible=(c.phoneContacts||[]).filter(p=>p && p.id && !["sleeping","do not disturb","driving"].includes(String(p.status||"").toLowerCase()));
+      const eligible=(c.phoneContacts||[]).filter(p=>p && p.id && NoctisPhoneOutput.named(p) && !["sleeping","do not disturb","driving"].includes(String(p.status||"").toLowerCase()));
       if(!eligible.length){
         ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");saveVault();return;
       }
@@ -523,11 +526,13 @@ ${mainRecent||"(none)"}`}],420,0.85);
       ch.nextAmbientTextAt=nowMs+ambientDelayMs(settings.ambientTextFrequency||"normal");saveVault();
       const p=eligible[Math.floor(Math.random()*eligible.length)];
       const thread=phoneThread(ch,p);
-      const recent=thread.slice(-10).map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n");
+      const recent=NoctisPhoneOutput.history(thread).slice(-10).map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n");
       const mainRecent=getConversationMessages(ch).slice(-6).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n");
       const social=recentSocialContext(ch);
 
-      const prompt=`AMBIENT PHONE TEXT
+      const prompt=`PHONE / TEXT MESSAGE MODE
+${NoctisPhoneOutput.instructions}
+AMBIENT PHONE TEXT
 Write ONE unsolicited text message from ${p.name||p.displayName} to the protagonist.
 Relationship/role: ${p.relationship||"(unspecified)"}
 Current status: ${p.status||"available"}
@@ -555,7 +560,7 @@ ${social||"(none)"}`;
         {role:"system",content:compileSystemPrompt()+"\n\n"+prompt}
       ],Math.min(Number(settings.maxTokens||900),260),Math.min(Number(settings.temperature??0.85),1.0));
 
-      const clean=String(reply||"").trim();
+      const clean=NoctisPhoneOutput.clean(reply);
       if(clean){
         thread.push({id:uid(),role:"assistant",text:clean,createdAt:now(),ambient:true});
         ch.phoneUnread[p.id]=Number(ch.phoneUnread[p.id]||0)+1;
@@ -588,17 +593,17 @@ ${social||"(none)"}`;
   function renderPhoneMessages(){
     const host=$("phoneMessages");if(!host)return;const p=contact(),ch=activeChat(),msgs=phoneThread(ch,p);host.innerHTML="";
     if(!msgs.length){const empty=document.createElement("div");empty.className="phone-empty";empty.textContent=`No messages with ${p?.displayName||p?.name||"this contact"} yet.`;host.appendChild(empty)}
-    msgs.forEach(msg=>{const row=document.createElement("div");row.className=`phone-message-row ${msg.role==="user"?"mine":"theirs"}`;const bubble=document.createElement("div");bubble.className="phone-bubble";bubble.textContent=msg.text;const meta=document.createElement("div");meta.className="phone-msg-meta";meta.textContent=fmtTime(msg.createdAt)+(msg.edited?" • edited":"");const tools=document.createElement("div");tools.className="phone-msg-tools";
+    msgs.forEach(msg=>{const row=document.createElement("div");row.className=`phone-message-row ${msg.role==="user"?"mine":"theirs"}`;const bubble=document.createElement("div");bubble.className="phone-bubble";bubble.textContent=NoctisPhoneOutput.display(msg);const meta=document.createElement("div");meta.className="phone-msg-meta";meta.textContent=fmtTime(msg.createdAt)+(msg.edited?" • edited":"");const tools=document.createElement("div");tools.className="phone-msg-tools";
       if(msg.role==="user"){const edit=document.createElement("button");edit.type="button";edit.className="phone-mini";edit.textContent="Edit";edit.addEventListener("click",()=>{const next=prompt("Edit message:",msg.text);if(next===null)return;const clean=next.trim();if(!clean)return;msg.text=clean;msg.edited=true;msg.editedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector()});tools.appendChild(edit)}
       const del=document.createElement("button");del.type="button";del.className="phone-mini danger";del.textContent="Delete";del.addEventListener("click",()=>{if(!confirm("Delete this message from this phone thread?"))return;ch.phoneThreads[p.id]=msgs.filter(x=>x.id!==msg.id);saveVault();renderPhoneMessages();renderMemoryInspector()});tools.appendChild(del);row.append(bubble,meta,tools);host.appendChild(row)});
     host.scrollTop=host.scrollHeight;
   }
   function renderPhone(){const form=$("phoneForm");if(form)delete form.dataset.groupId;const input=$("phoneInput");if(input)input.placeholder="Message…";ensureLivingWorldData();renderPhoneContactRail();renderPhoneHeader();renderPhoneMessages();renderPhoneDirectory();updatePhoneUnreadUI();const away=$("phoneAwayNote");if(away)away.value=activeChat().phoneAwayNote||""}
 
-  function recentPhoneContext(ch=activeChat(),limit=6){const c=activeCharacter(),chunks=[];(c.phoneContacts||[]).forEach(p=>{const arr=(ch.phoneThreads?.[p.id]||[]).slice(-limit);if(!arr.length)return;chunks.push(`TEXT THREAD — ${p.displayName||p.name}\n${arr.map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n")}`)});return chunks.join("\n\n")}
-  function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=phoneThread(ch,p).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nRelationship / role: ${p.relationship||"(not specified)"}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
+  function recentPhoneContext(ch=activeChat(),limit=6){const c=activeCharacter(),chunks=[];(c.phoneContacts||[]).forEach(p=>{const arr=NoctisPhoneOutput.history(ch.phoneThreads?.[p.id]||[]).slice(-limit);if(!arr.length)return;chunks.push(`TEXT THREAD — ${p.displayName||p.name}\n${arr.map(m=>`${m.role==="user"?"PROTAGONIST":(p.displayName||p.name)}: ${m.text}`).join("\n")}`)});return chunks.join("\n\n")}
+  function phoneApiMessages(p){const ch=activeChat();const mainRecent=getConversationMessages(ch).slice(-8).map(m=>`${m.role==="user"?"PROTAGONIST":"CHARACTER"}: ${m.text}`).join("\n\n");const phone=NoctisPhoneOutput.history(phoneThread(ch,p)).slice(-24).map(m=>({role:m.role,content:m.text}));const specific=`PHONE / TEXT MESSAGE MODE\n${NoctisPhoneOutput.instructions}\nYou are texting as ${p.name||activeCharacter().name}.\nDisplay name: ${p.displayName||p.name}\nRelationship / role: ${p.relationship||"(not specified)"}\nCurrent phone status: ${p.status||"available"}\nAway/context note: ${ch.phoneAwayNote||"(none)"}\nTexting style: ${p.textingStyle||"(use established character voice)"}\n\nRules for this mode:\n- Reply as this contact only.\n- Write only the text they would actually send. No prose narration, stage directions, labels, quotation marks, or assistant commentary.\n- Do not narrate or decide the protagonist's actions, feelings, thoughts, reactions, or replies.\n- Keep established relationship, canon, secrets, promises, and scene continuity.\n- Phone messages are canon to this timeline and may be referenced later in the main RP.\n- Sound like a real person texting, not a formal roleplay narrator.\n- Usually send one concise message. A longer message is fine when emotionally justified.\n\nIMMEDIATE MAIN-RP CONTEXT\n${mainRecent||"(none)"}`;return [{role:"system",content:compileSystemPrompt()+"\n\n"+specific},...phone]}
 
-  async function sendPhoneMessage(text){const p=contact(),ch=activeChat();if(!p)return;const clean=text.trim();if(!clean)return;const thread=phoneThread(ch,p);thread.push({id:uid(),role:"user",text:clean,createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const send=$("phoneSendBtn");if(send){send.disabled=true;send.textContent="…"}const typing=$("phoneTyping");if(typing)typing.textContent=`${p.displayName||p.name} is typing…`;try{const reply=await openRouterRequest(phoneApiMessages(p),Math.min(Number(settings.maxTokens||900),500),Math.min(Number(settings.temperature??0.85),1.05));thread.push({id:uid(),role:"assistant",text:String(reply||"").trim(),createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const combined=(clean+" "+reply).toLowerCase();if(/love you|marry me|engaged|break up|we're done|pregnan|mate bond|bonded|confess|betray|secret|promise/.test(combined)){ch.pendingMilestone=true;ch.pendingMilestoneAt=now();saveVault();updateMemoryStatus("Likely major milestone detected in Phone • tap Save Milestone Now if it should become long-term memory.")}}catch(err){alert(`Phone reply failed: ${err?.message||String(err)}`)}finally{if(send){send.disabled=false;send.textContent="Send"}if(typing)typing.textContent=""}}
+  async function sendPhoneMessage(text){const p=contact(),ch=activeChat();if(!p)return;const clean=text.trim();if(!clean)return;const thread=phoneThread(ch,p);thread.push({id:uid(),role:"user",text:clean,createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const send=$("phoneSendBtn");if(send){send.disabled=true;send.textContent="…"}const typing=$("phoneTyping");if(typing)typing.textContent=`${p.displayName||p.name} is typing…`;try{const reply=NoctisPhoneOutput.clean(await openRouterRequest(phoneApiMessages(p),Math.min(Number(settings.maxTokens||900),500),Math.min(Number(settings.temperature??0.85),1.05)));thread.push({id:uid(),role:"assistant",text:reply,createdAt:now()});ch.updatedAt=now();saveVault();renderPhoneMessages();renderMemoryInspector();const combined=(clean+" "+reply).toLowerCase();if(/love you|marry me|engaged|break up|we're done|pregnan|mate bond|bonded|confess|betray|secret|promise/.test(combined)){ch.pendingMilestone=true;ch.pendingMilestoneAt=now();saveVault();updateMemoryStatus("Likely major milestone detected in Phone • tap Save Milestone Now if it should become long-term memory.")}}catch(err){alert(`Phone reply failed: ${err?.message||String(err)}`)}finally{if(send){send.disabled=false;send.textContent="Send"}if(typing)typing.textContent=""}}
 
   function renderMemoryInspector(){const host=$("memoryInspector");if(!host)return;ensureLivingWorldData();const c=activeCharacter(),ch=activeChat();const live=unconsolidatedMessages(ch).slice(-40);const phoneCount=Object.values(ch.phoneThreads||{}).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0);const sys=compileSystemPrompt();const approx=Math.ceil(sys.length/4);host.innerHTML=`<div class="memory-meter-grid"><div><strong>${approx.toLocaleString()}</strong><span>approx system tokens</span></div><div><strong>${live.length}</strong><span>live RP messages</span></div><div><strong>${phoneCount}</strong><span>phone messages</span></div><div><strong>${c.lore?.length||0}</strong><span>lore entries</span></div></div><div class="memory-layer-list"><div><b>Character canon</b><span>${(c.permanentMemory||"").length?"loaded":"empty"}</span></div><div><b>Relationship memory</b><span>${(ch.relationshipMemory||"").length?"loaded":"empty"}</span></div><div><b>Consolidated history</b><span>${(ch.consolidatedMemory||"").length?"loaded":"empty"}</span></div><div><b>Scene state</b><span>${[ch.scene?.location,ch.scene?.time,ch.scene?.state,ch.scene?.emotion].some(Boolean)?"loaded":"empty"}</span></div><div><b>Phone continuity</b><span>${phoneCount?"recent messages shared with main RP":"empty"}</span></div></div><p class="hint">Noctis keeps full transcripts in the vault, but only recent live turns + compact memory are sent during normal RP. Phone uses its own recent thread plus a small slice of main-RP context.</p>`}
 
@@ -667,7 +672,10 @@ ${social||"(none)"}`;
     if(form)form.addEventListener("submit",async e=>{
       e.preventDefault();if(phoneBusy)return;
       const input=$("phoneInput"),text=input.value.trim();if(!text)return;
-      const gid=form.dataset.groupId||"";input.value="";phoneBusy=true;$("phoneSendBtn").disabled=true;
+      const gid=form.dataset.groupId||"";
+      const targets=gid?(activeChat().phoneGroups.find(g=>g.id===gid)?.memberIds||[]).map(id=>activeCharacter().phoneContacts.find(p=>p.id===id)):[contact()];
+      if(!targets.some(p=>p && NoctisPhoneOutput.named(p))){alert("Name this contact in Contact Settings before texting. Placeholder contacts cannot generate replies.");return;}
+      input.value="";phoneBusy=true;$("phoneSendBtn").disabled=true;
       try{if(gid)await sendGroupMessage(gid,text);else await sendPhoneMessage(text);}
       finally{phoneBusy=false;$("phoneSendBtn").disabled=false;}
     });
