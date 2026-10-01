@@ -2,13 +2,13 @@
    Adds Milestone Sync / Backfill:
    - scans the active RP transcript in manageable chunks
    - suggests relationship milestones already present in canon
-   - requires user confirmation before saving
+   - automatically saves clear events; uncertain events remain reviewable
    - remembers scan progress for future incremental syncs
 */
 (() => {
   'use strict';
 
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -320,7 +320,7 @@
     const emoji=String(x.emoji||preset?.emoji||'✨🖤✨').trim();
     const line=String(x.line||preset?.line||'A lasting relationship milestone occurred.').trim();
     const evidence=String(x.evidence||'').trim();
-    const confidence=/^medium$/i.test(String(x.confidence||''))?'medium':'high';
+    const confidence=/^high$/i.test(String(x.confidence||''))?'high':'medium';
 
     let messageIndex=Number(x.messageIndex);
     if(!Number.isInteger(messageIndex) || messageIndex<1 || messageIndex>msgs.length) messageIndex=null;
@@ -419,7 +419,10 @@ If none are present, return:
 {"milestones":[]}
 
 TRANSCRIPT CHUNK ${chunkNumber} OF ${totalChunks}:
-${transcript}`;
+${transcript}
+
+ALREADY RECORDED — do not repeat these events:
+${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
 
     const raw=await openRouterRequest([
       {role:'system',content:'Return ONLY valid JSON for retrospective fictional relationship milestone extraction. Never invent events.'},
@@ -427,13 +430,72 @@ ${transcript}`;
     ],1400,0.02);
 
     const data=cleanJson(raw);
-    const arr=Array.isArray(data?.milestones)?data.milestones:[];
+    if(!Array.isArray(data?.milestones))throw new Error('Invalid milestone response; scan progress was not advanced');
+    const arr=data.milestones;
     return arr.map(x=>normalizeSuggestion(x,msgs)).filter(Boolean);
   }
 
   let pendingSuggestions=[];
   let pendingReview=null;
   let scanBusy=false;
+  function renderAutoStatus(){
+    const ch=getChat(), el=$('#rmAutoStatus'), toggle=$('#rmAutoEnabled');
+    const review=$('#rmReviewAutomatic');
+    if(review){const n=ch?.relationshipMilestoneAutoSuggestions?.length||0;review.hidden=!n;review.textContent=`Review ${n} uncertain milestone${n===1?'':'s'}`;}
+    if(toggle)toggle.checked=settings.autoRelationshipMilestones!==false;
+    if(el)el.textContent=settings.autoRelationshipMilestones===false?'Automatic scans paused.':
+      (ch?.relationshipMilestoneAutoStatus||'Automatically catches up this chat, then checks new replies. Uses your selected model and credits. Only high-confidence events are saved.');
+  }
+
+  async function autoScan(){
+    renderAutoStatus();
+    if(settings.autoRelationshipMilestones===false || !settings.apiKey || scanBusy ||
+      document.visibilityState==='hidden' || (typeof mainGenerationBusy!=='undefined' && mainGenerationBusy) || pendingReview?.complete)return;
+    const ch=ensure(), msgs=storyMessages().map(m=>({...m}));
+    // Catch up older history even when a chat is waiting for its next reply.
+    while(msgs.length && msgs.at(-1).role!=='assistant')msgs.pop();
+    if(!ch || !msgs.length || Date.now()<Number(ch.relationshipMilestoneAutoRetryAt||0))return;
+    const start=scanStartIndex(msgs);
+    if(start>=msgs.length)return;
+    if(!ch.relationshipMilestoneAutoCatchupTarget)ch.relationshipMilestoneAutoCatchupTarget=msgs.at(-1).id;
+    const catchup=!ch.relationshipMilestoneAutoCaughtUp;
+    const chunk=buildChunks(msgs,Math.max(0,start-SCAN_OVERLAP))[0];
+    // Ensure a long overlap cannot prevent forward progress.
+    if(chunk.end<=start){chunk.start=start;chunk.end=buildChunks(msgs,start)[0].end;}
+    scanBusy=true;
+    ch.relationshipMilestoneAutoStatus=`${catchup?'Catching up':'Checking new replies'}: reading through message ${chunk.end} of ${msgs.length}…`;
+    save();renderAutoStatus();
+    try{
+      const found=await analyzeChunk(msgs,chunk,1,1);
+      if(getChat()!==ch)return;
+      const current=storyMessages();
+      if(msgs.slice(0,chunk.end).some((m,i)=>current[i]?.id!==m.id||current[i]?.text!==m.text))throw new Error('Story changed during the scan');
+      if(settings.autoRelationshipMilestones===false)return;
+      let last=null, added=0;
+      for(const s of dedupeSuggestions(found)){
+        if(!s.evidence||!s.sourceMessageId||s.messageIndex<=chunk.start||s.messageIndex>chunk.end||alreadyRecorded(s))continue;
+        if(s.confidence!=='high'){
+          ch.relationshipMilestoneAutoSuggestions=dedupeSuggestions([...(ch.relationshipMilestoneAutoSuggestions||[]),s]);continue;
+        }
+        last=addMilestone({...s,note:s.evidence,source:'automatic',sourceMessageIndex:s.messageIndex,show:false});added++;
+      }
+      ch.relationshipMilestoneAutoSuggestions=(ch.relationshipMilestoneAutoSuggestions||[]).filter(s=>!alreadyRecorded(s));
+      ch.relationshipMilestoneScanThroughMessageId=msgs[chunk.end-1].id;
+      const target=msgs.findIndex(m=>m.id===ch.relationshipMilestoneAutoCatchupTarget);
+      if(target<chunk.end)ch.relationshipMilestoneAutoCaughtUp=true;
+      ch.relationshipMilestoneAutoRetryAt=0;
+      ch.relationshipMilestoneAutoStatus=chunk.end<msgs.length?
+        `Catch-up saved through message ${chunk.end} of ${msgs.length}. Continuing automatically…`:
+        `Up to date through message ${chunk.end}. New replies will be checked automatically.`;
+      ch.updatedAt=stamp();save();renderAllBits();renderAutoStatus();
+      // Backfill updates history quietly; live events retain the celebration.
+      if(!catchup && last)showCeremony({...last,line:added>1?`${added} new relationship milestones recorded.`:last.line});
+    }catch(err){
+      ch.relationshipMilestoneAutoRetryAt=Date.now()+30*60*1000;
+      ch.relationshipMilestoneAutoStatus=`Automatic scan paused for 30 minutes: ${err?.message||String(err)}. Saved progress is retained.`;
+      ch.updatedAt=stamp();save();renderAutoStatus();
+    }finally{scanBusy=false;}
+  }
   function validReview(){
     if(!pendingReview || pendingReview.chat!==getChat() || !pendingReview.complete){
       setSyncStatus('Finish a scan of this timeline before marking it reviewed.');return false;
@@ -568,10 +630,12 @@ ${transcript}`;
     const msgs=storyMessages();
     ch.relationshipMilestoneScanThroughMessageId=pendingReview.messages.at(-1)?.id||null;
     ch.updatedAt=stamp();
+    ch.relationshipMilestoneAutoSuggestions=(ch.relationshipMilestoneAutoSuggestions||[]).filter(s=>!selected.some(x=>suggestionKey(x)===suggestionKey(s)));
     syncCoreMemory();
     save();
 
     pendingSuggestions=pendingSuggestions.filter(s=>!selected.includes(s));
+    if(!pendingSuggestions.length)pendingReview=null;
     renderSyncSuggestions();
     renderAllBits();
     setSyncStatus(`Added ${selected.length} milestone${selected.length===1?'':'s'} to this timeline. Future syncs will start after the story you just reviewed.`);
@@ -590,9 +654,11 @@ ${transcript}`;
     const msgs=storyMessages();
     if(!ch||!msgs.length)return;
     ch.relationshipMilestoneScanThroughMessageId=pendingReview.messages.at(-1)?.id||null;
+    ch.relationshipMilestoneAutoSuggestions=[];
     ch.updatedAt=stamp();
     save();
     pendingSuggestions=[];
+    pendingReview=null;
     renderSyncSuggestions();
     setSyncStatus('Marked this story as reviewed. Future syncs will scan only newer messages.');
   }
@@ -640,6 +706,9 @@ ${transcript}`;
     </header>
 
     <div class="rm-form">
+      <label><input id="rmAutoEnabled" type="checkbox" checked /> Automatically catch up and detect milestones</label>
+      <p id="rmAutoStatus" class="hint" aria-live="polite"></p>
+      <button id="rmReviewAutomatic" class="ghost small" type="button" hidden>Review uncertain milestones</button>
       <div class="rm-actions-row">
         <button id="rmStorySync" class="send" type="button">🔄 Milestone Sync</button>
         <button id="rmTest" class="ghost" type="button">✨ Test Popup</button>
@@ -705,6 +774,17 @@ ${transcript}`;
 </div>`);
 
       $('#rmClosePanel').addEventListener('click',closePanel);
+      $('#rmReviewAutomatic').addEventListener('click',()=>{
+        const ch=ensure();if(scanBusy||!ch)return;
+        const msgs=storyMessages(),through=msgs.findIndex(m=>m.id===ch.relationshipMilestoneScanThroughMessageId);
+        pendingSuggestions=(ch.relationshipMilestoneAutoSuggestions||[]).filter(s=>!alreadyRecorded(s));
+        pendingReview={chat:ch,messages:msgs.slice(0,through+1).map(m=>({id:m.id,text:m.text})),complete:true};
+        renderSyncSuggestions();setSyncStatus('These events were uncertain. Select only the ones your story established.');
+      });
+      $('#rmAutoEnabled').addEventListener('change',e=>{
+        settings.autoRelationshipMilestones=e.target.checked;saveSettings();renderAutoStatus();
+        if(e.target.checked)autoScan();
+      });
       $('#rmPreset').addEventListener('change',fillPreset);
       $('#rmTest').addEventListener('click',testCeremony);
       $('#rmStorySync').addEventListener('click',()=>runMilestoneSync(false));
@@ -750,7 +830,7 @@ ${transcript}`;
       });
     }
 
-    renderAllBits();
+    renderAllBits();renderAutoStatus();
   }
 
   let attempts=0;
@@ -764,6 +844,8 @@ ${transcript}`;
   else boot();
 
   window.addEventListener('pageshow',buildUI);
+  setInterval(autoScan,30000);
+  setTimeout(autoScan,10000);
   new MutationObserver(()=>{
     hideSync();
     if(!$('#relationshipMilestoneBtn'))buildUI();
@@ -776,6 +858,7 @@ ${transcript}`;
     test:testCeremony,
     add:addMilestone,
     history,
+    autoScan,
     sync:()=>runMilestoneSync(false),
     rescanAll:()=>runMilestoneSync(true)
   };
