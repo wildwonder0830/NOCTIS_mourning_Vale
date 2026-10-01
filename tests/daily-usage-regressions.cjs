@@ -44,3 +44,37 @@ test('report is copyable and daily history survives monthly counter reset and re
  h.w.document.getElementById('dailyUsageReportBtn').click();assert.match(h.w.document.getElementById('dailyUsageReport').value,/NOCTIS — 7-DAY USAGE REPORT/);
  const next=await app(t,{[KEY]:JSON.parse(saved)});assert.equal(next.w.NoctisDailyUsage.snapshot().rows.at(-1).requests,1);
 });
+test('active sample measures requests and background usage per hour without network calls',async t=>{
+ const h=await app(t),u=h.w.NoctisActiveUsage,d=h.w.NoctisDailyUsage;
+ let now=Date.now();h.w.Date.now=()=>now;u.start();
+ const timer=h.intervals.find(x=>x.delay===10000);
+ for(let i=0;i<90;i++){now+=10000;timer.callback();}
+ d.record({usage:{prompt_tokens:100000,completion_tokens:10000}},'gemma',true,now-1000);
+ d.record(null,'scan',false,now-500);
+ u.pause();const s=u.snapshot();
+ assert.equal(s.hours,.25);assert.equal(s.requestsPerHour,4);assert.equal(s.failed,1);
+ assert.ok(Math.abs(s.gemmaMonth-11.904)<1e-9);
+ d.record({usage:{prompt_tokens:999999,completion_tokens:20}},'background',true,now+1000);
+ assert.equal(u.snapshot().input,100000);assert.equal(h.requests.length,0);
+ assert.match(u.summary(),/11.90/);
+});
+test('daily quota failures pause measurement and flag the day; ordinary errors do not',async t=>{
+ const h=await app(t),u=h.w.NoctisActiveUsage,d=h.w.NoctisDailyUsage;
+ u.start();d.record({error:{message:'provider temporarily unavailable'}},'free',false);
+ assert.equal(u.snapshot().running,true);
+ d.record({error:{message:'Rate limit exceeded: free-models-per-day'}},'free',false);
+ assert.equal(u.snapshot().running,false);assert.equal(d.snapshot().rows.at(-1).limited,true);
+ const report=d.summary();assert.match(report,/limited by free allowance/);
+});
+test('historical days marked limited do not enter calendar estimates',async t=>{
+ const h=await app(t),u=h.w.NoctisDailyUsage;
+ h.w.localStorage.setItem(KEY,JSON.stringify({version:1,startedAt:'2026-09-29',startedDay:'2026-09-29',days:{'2026-09-30':{requests:50,input:100000,output:1000,limited:true,byModel:{}}}}));
+ assert.equal(u.snapshot(new h.w.Date(2026,9,1,12)).completeDays,0);
+});
+test('hidden pages pause and reload keeps samples without counting away time',async t=>{
+ const h=await app(t),u=h.w.NoctisActiveUsage;u.start();
+ Object.defineProperty(h.w.document,'hidden',{configurable:true,value:true});
+ h.w.document.dispatchEvent(new h.w.Event('visibilitychange'));assert.equal(u.snapshot().running,false);
+ const saved=JSON.parse(h.w.localStorage.getItem('noctis-active-usage-v1'));
+ const next=await app(t,{'noctis-active-usage-v1':saved});assert.equal(next.w.NoctisActiveUsage.snapshot().running,false);
+});
