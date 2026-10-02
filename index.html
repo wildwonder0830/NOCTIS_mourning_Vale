@@ -150,8 +150,6 @@
           <textarea id="consolidatedMemory" rows="7" placeholder="Older history will be summarized here. You can edit it manually."></textarea>
           <div id="consolidationStatus" class="test-result"></div>
         </div>
-        <div class="section-title-row"><div><h2 class="subhead">Auto-Saved Milestones</h2><p class="hint">Major events detected from this timeline. You can delete anything Noctis saved incorrectly.</p></div></div>
-        <div id="milestoneList" class="stack"></div>
         <h2 class="subhead">Current Scene</h2>
         <label>Location<input id="sceneLocation" /></label><label>Time / Atmosphere<input id="sceneTime" /></label><label>Scene State<textarea id="sceneState" rows="6"></textarea></label><label>Emotional State<textarea id="sceneEmotion" rows="5"></textarea></label>
         <div class="section-title-row"><h2 class="subhead">Open Threads</h2><button id="addThreadBtn" class="small">+ Add</button></div>
@@ -159,7 +157,13 @@
       </div>
     </section>
 
-    <section class="view" data-view="milestones"><div id="relationshipMilestoneTabHost"></div></section>
+    <section class="view" data-view="milestones">
+      <div class="panel">
+        <div class="section-title-row"><div><h2>Continuity Milestones</h2><p class="hint">Major durable events remembered for this timeline. Delete anything Noctis saved incorrectly.</p></div></div>
+        <div id="milestoneList" class="stack"></div>
+      </div>
+      <div id="relationshipMilestoneTabHost"></div>
+    </section>
 
     <section class="view" data-view="lore"><div class="panel"><div class="section-title-row"><div><h2>Lorebook</h2><p class="hint">Shared canon: people, places, supernatural laws, objects, history, pack rules, prophecies, and anything else the RP should remember.</p></div><button id="addLoreBtn" class="small">+ Add</button></div><div id="loreList" class="stack"></div></div></section>
 
