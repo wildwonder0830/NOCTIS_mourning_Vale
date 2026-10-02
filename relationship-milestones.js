@@ -787,6 +787,10 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   </section>
 </div>`);
 
+      // Keep celebration popups outside the hidden tab view so they can appear over the active story.
+      const ceremony=$('#relationshipMilestoneCeremony');
+      if(ceremony && ceremony.parentElement!==document.body)document.body.appendChild(ceremony);
+
       $('#rmClosePanel').addEventListener('click',closePanel);
       $('#rmReviewAutomatic').addEventListener('click',()=>{
         const ch=ensure();if(scanBusy||!ch)return;
