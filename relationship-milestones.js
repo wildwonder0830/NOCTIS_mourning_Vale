@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.2';
+  const VERSION = '1.3.3';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -43,6 +43,7 @@
     style.id='rmSelfStyles';
     style.textContent=`
 #syncBtn,#syncModal,#syncImportInput{display:none!important}
+.rm-tab-panel{margin:0}.rm-tab-panel .rm-panel-card{width:100%;max-width:none;max-height:none;overflow:visible}
 .rm-backdrop,.rm-ceremony-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(7,4,10,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:max(18px,env(safe-area-inset-top)) 16px max(18px,env(safe-area-inset-bottom))}
 .rm-backdrop.hidden,.rm-ceremony-backdrop.hidden,.rm-custom-fields.hidden,.rm-sync-box.hidden{display:none!important}
 .rm-panel-card{width:min(720px,100%);max-height:88dvh;overflow:auto;background:linear-gradient(180deg,#1a1020,#100b15);border:1px solid rgba(213,162,255,.3);border-radius:24px;padding:20px;box-shadow:0 28px 80px rgba(0,0,0,.48);color:inherit}
@@ -198,7 +199,6 @@
     const modal=$('#relationshipMilestoneCeremony');
     if(modal && !modal.classList.contains('hidden'))return;
     if(document.visibilityState==='hidden' || !document.querySelector('[data-view="chat"].active'))return;
-    if($('#relationshipMilestonePanel') && !$('#relationshipMilestonePanel').classList.contains('hidden'))return;
     const pending=history().find(item=>item.pendingCelebration);
     if(pending)showCeremony(pending);
   }
@@ -209,10 +209,11 @@
       pendingSuggestions=[];
       $('#rmSyncBox')?.classList.add('hidden');
     }
-    $('#relationshipMilestonePanel')?.classList.remove('hidden');
+    if(typeof selectTab==='function')selectTab('milestones');
     renderAllBits();
+    renderAutoStatus();
   }
-  function closePanel(){$('#relationshipMilestonePanel')?.classList.add('hidden');}
+  function closePanel(){if(typeof selectTab==='function')selectTab('chat');}
 
   function renderStatus(){
     const host=$('#relationshipMilestoneStatus');
@@ -503,7 +504,9 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
           ch.relationshipMilestoneAutoSuggestions=dedupeSuggestions([...(ch.relationshipMilestoneAutoSuggestions||[]),s]);continue;
         }
         last=addMilestone({...s,note:s.evidence,source:'automatic',sourceMessageIndex:s.messageIndex,show:false});added++;
-        if(!catchup && last)last.pendingCelebration=true;
+        const sourceIndex=s.messageIndex?Number(s.messageIndex)-1:-1;
+        const isRecent=sourceIndex>=Math.max(0,msgs.length-4);
+        if(last && (!catchup || isRecent))last.pendingCelebration=true;
       }
       ch.relationshipMilestoneAutoSuggestions=(ch.relationshipMilestoneAutoSuggestions||[]).filter(s=>!alreadyRecorded(s));
       ch.relationshipMilestoneScanThroughMessageId=msgs[chunk.end-1].id;
@@ -514,8 +517,8 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
         `Catch-up saved through message ${chunk.end} of ${msgs.length}. Continuing automatically…`:
         `Up to date through message ${chunk.end}. New replies will be checked automatically.`;
       ch.updatedAt=stamp();save();renderAllBits();renderAutoStatus();
-      // Backfill updates history quietly; live events retain the celebration.
-      if(!catchup && last)flushCelebrations();
+      // Old backfill stays quiet, but a newly-detected recent event still gets its celebration.
+      if(last?.pendingCelebration)flushCelebrations();
     }catch(err){
       ch.relationshipMilestoneAutoRetryAt=Date.now()+30*60*1000;
       ch.relationshipMilestoneAutoStatus=`Automatic scan paused for 30 minutes: ${err?.message||String(err)}. Saved progress is retained.`;
@@ -699,27 +702,10 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
     injectStyles();
     hideSync();
 
-    const toolbar=$('.chat-toolbar');
-    if(!$('#relationshipMilestoneBtn')){
-      const b=document.createElement('button');
-      b.id='relationshipMilestoneBtn';
-      b.type='button';
-      b.className='ghost small rm-toolbar-btn';
-      b.textContent='🖤 Milestones';
-      b.addEventListener('click',openPanel);
-      if(toolbar) toolbar.prepend(b);
-      else {
-        b.style.position='fixed';
-        b.style.right='12px';
-        b.style.bottom='calc(14px + env(safe-area-inset-bottom))';
-        b.style.zIndex='5000';
-        document.body.appendChild(b);
-      }
-    }
-
     if(!$('#relationshipMilestonePanel')){
-      document.body.insertAdjacentHTML('beforeend',`
-<div id="relationshipMilestonePanel" class="rm-backdrop hidden" role="dialog" aria-modal="true">
+      const host=$('#relationshipMilestoneTabHost')||document.body;
+      host.insertAdjacentHTML('beforeend',`
+<div id="relationshipMilestonePanel" class="rm-tab-panel">
   <section class="rm-panel-card">
     <header class="rm-panel-head">
       <div>
@@ -728,7 +714,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
         <div id="relationshipMilestoneStatus" class="rm-current"></div>
         <div id="rmDiagnostic" class="rm-diagnostic"></div>
       </div>
-      <button id="rmClosePanel" class="ghost small" type="button">Close</button>
+      <button id="rmClosePanel" class="ghost small" type="button">Back to Story</button>
     </header>
 
     <div class="rm-form">
@@ -836,7 +822,6 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
         });
         if(item){
           $('#rmNote').value='';
-          closePanel();
         }
       });
 
@@ -863,13 +848,13 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   function boot(){
     attempts++;
     buildUI();
-    if(attempts<20 && !$('.chat-toolbar')) setTimeout(boot,500);
+    if(attempts<20 && !$('#relationshipMilestoneTabHost')) setTimeout(boot,500);
   }
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
   else boot();
 
-  window.addEventListener('pageshow',buildUI);
+  window.addEventListener('pageshow',()=>{buildUI();flushCelebrations();});
   document.addEventListener('visibilitychange',flushCelebrations);
   document.addEventListener('keydown',event=>{
     const modal=$('#relationshipMilestoneCeremony');
@@ -891,7 +876,7 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
   setTimeout(autoScan,10000);
   new MutationObserver(()=>{
     hideSync();
-    if(!$('#relationshipMilestoneBtn'))buildUI();
+    if(!$('#relationshipMilestonePanel') && $('#relationshipMilestoneTabHost'))buildUI();
   }).observe(document.documentElement,{childList:true,subtree:true});
 
   window.NoctisRelationshipMilestones={
