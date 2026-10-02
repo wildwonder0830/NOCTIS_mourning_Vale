@@ -6,6 +6,15 @@
     "relationshipMemory": {
       "type": "string"
     },
+    "knowledgeLedger": {
+      "type": "object",
+      "properties": {
+        "known": {"type": "string"},
+        "unknown": {"type": "string"},
+        "recent": {"type": "string"},
+        "doNotAsk": {"type": "string"}
+      }
+    },
     "scene": {
       "type": "object",
       "properties": {

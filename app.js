@@ -15,6 +15,7 @@ function newChat(title="Main Story"){
   return {
     id:uid(),title,messages:[],relationshipMemory:"",milestones:[],
     consolidatedMemory:"",consolidatedThroughMessageId:null,
+    knowledgeLedger:{known:"",unknown:"",recent:"",doNotAsk:""},
     scene:{location:"",time:"",state:"",emotion:""},
     threads:[],activePersonaId:null,castFocus:"",
     pendingMilestone:false,createdAt:now(),updatedAt:now()
@@ -205,6 +206,8 @@ function normalizeVaultV07(){
       ch.milestones=Array.isArray(ch.milestones)?ch.milestones:[];
       if(typeof ch.consolidatedMemory!=="string")ch.consolidatedMemory="";
       if(!("consolidatedThroughMessageId" in ch))ch.consolidatedThroughMessageId=null;
+      if(!ch.knowledgeLedger || typeof ch.knowledgeLedger!=="object" || Array.isArray(ch.knowledgeLedger))ch.knowledgeLedger={};
+      ["known","unknown","recent","doNotAsk"].forEach(k=>{if(typeof ch.knowledgeLedger[k]!=="string")ch.knowledgeLedger[k]=""});
       if(!vault.personas.some(p=>p.id===ch.activePersonaId))ch.activePersonaId=vault.personas[0].id;
       if(typeof ch.castFocus!=="string")ch.castFocus="";
     });
@@ -407,6 +410,10 @@ function renderBasics(){
   $("charName").value=c.name||"";$("charRole").value=c.role||"";$("charPersonality").value=c.personality||"";
   $("charBackstory").value=c.backstory||"";$("charVoice").value=c.voice||"";$("charDirectives").value=c.directives||"";
   $("memoryPermanent").value=c.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
+  if($("knowledgeKnown"))$("knowledgeKnown").value=ch.knowledgeLedger?.known||"";
+  if($("knowledgeUnknown"))$("knowledgeUnknown").value=ch.knowledgeLedger?.unknown||"";
+  if($("knowledgeRecent"))$("knowledgeRecent").value=ch.knowledgeLedger?.recent||"";
+  if($("knowledgeDoNotAsk"))$("knowledgeDoNotAsk").value=ch.knowledgeLedger?.doNotAsk||"";
   if($("migrationNotes"))$("migrationNotes").value=c.migrationNotes||"";
   renderLoveInterests();
   $("sceneLocation").value=ch.scene.location||"";$("sceneTime").value=ch.scene.time||"";
@@ -525,6 +532,14 @@ function bindBasics(){
     c.updatedAt=now();saveVault();renderLoveInterests();
   });
   $("memoryRelationship").addEventListener("input",e=>{activeChat().relationshipMemory=e.target.value;activeChat().updatedAt=now();saveVault()});
+  [["knowledgeKnown","known"],["knowledgeUnknown","unknown"],["knowledgeRecent","recent"],["knowledgeDoNotAsk","doNotAsk"]].forEach(([id,key])=>{
+    if(!$(id))return;
+    $(id).addEventListener("input",e=>{
+      const ch=activeChat();
+      if(!ch.knowledgeLedger||typeof ch.knowledgeLedger!=="object")ch.knowledgeLedger={known:"",unknown:"",recent:"",doNotAsk:""};
+      ch.knowledgeLedger[key]=e.target.value;ch.updatedAt=now();saveVault();
+    });
+  });
   [["sceneLocation","location"],["sceneTime","time"],["sceneState","state"],["sceneEmotion","emotion"]].forEach(([id,key])=>$(id).addEventListener("input",e=>{activeChat().scene[key]=e.target.value;activeChat().updatedAt=now();saveVault()}));
   $("apiKey").addEventListener("input",e=>{settings.apiKey=e.target.value.trim();saveSettings();updateConnectionStatus()});
   $("modelName").addEventListener("change",e=>{
@@ -633,7 +648,7 @@ async function consolidateOlderHistory(){
 
 Merge the EXISTING COMPACT MEMORY with the NEW OLDER TRANSCRIPT into one concise continuity record.
 
-Keep only durable facts future scenes may need: relationship status and milestones; promises and consequences; identities, powers, transformations, lasting injuries; major discoveries and who knows them; plot-relevant locations or objects; unresolved threads; stable preferences established in the RP.
+Keep only durable facts future scenes may need: relationship status and milestones; promises and consequences; identities, powers, transformations, lasting injuries; major discoveries and who knows them; plot-relevant locations or objects; unresolved threads; stable preferences established in the RP. Preserve knowledge ownership explicitly: label facts as KNOWN TO [character], UNKNOWN TO [character], or DO NOT ASK FOR AS NEW when appropriate.
 
 Drop prose flourishes, repeated affection, routine meals/outfits/minor actions, explicit mechanical sexual detail, temporary sensations, and duplicate facts.
 
@@ -1019,6 +1034,13 @@ Role / identity: ${x.role||"(unspecified)"}
 Relationship dynamic: ${x.dynamic||"(unspecified)"}
 Voice & behavior: ${x.voice||"(unspecified)"}
 Continuity notes: ${x.continuity||"(none)"}`).join("\n\n")||"(none — this is a single-interest or non-romantic story)";
+  const ledger=ch.knowledgeLedger||{};
+  const knowledgeLedger=[
+    `KNOWN TO NPCS / CAST:\n${ledger.known||"(none recorded)"}`,
+    `UNKNOWN OR UNCONFIRMED:\n${ledger.unknown||"(none recorded)"}`,
+    `RECENTLY CONFIRMED:\n${ledger.recent||"(none recorded)"}`,
+    `DO NOT ASK FOR AS NEW:\n${ledger.doNotAsk||"(none recorded)"}`
+  ].join("\n\n");
   return `You are performing the roleplay character or cast named ${c.name || "the character"}.
 
 CHARACTER / CAST ROLE
@@ -1072,6 +1094,9 @@ ${lore}
 OPEN THREADS FOR THIS TIMELINE
 ${threads}
 
+KNOWLEDGE LEDGER — WHO KNOWS WHAT
+${knowledgeLedger}
+
 GLOBAL HARD LIMITS — ABSOLUTE
 ${settings.hardLimits || defaultSettings.hardLimits}
 
@@ -1094,6 +1119,8 @@ NOCTIS CORE CONTINUITY RULES
 - Never manufacture personal history and then treat it as remembered canon. Prior events, habits, injuries, clothing ownership/history, medical details, family history, relationship milestones, promises, and private routines must come from supplied canon or chat history.
 - Harmless environmental texture is allowed, but invented personal facts are not.
 - If an important personal detail is unknown, leave it unknown rather than guessing.
+- Knowledge ownership is part of canon. A fact can be true without every character knowing it; use the ledger, canon, and transcript to decide who may reference it.
+- SURVEILLANCE / BUGGING CONTINUITY: if an NPC is established to have watched, monitored, bugged, or surveilled the protagonist or a location, that NPC already knows details they could reasonably observe there, including the residence or apartment exterior, visible routines, and a pet's name if it was observable or learned through that surveillance. Do not ask the protagonist to reveal an already-observed fact as though it is unknown. Keep genuinely private or unobserved details unknown.
 - Preserve physical geography, positions, clothing, objects, injuries, transformations, elapsed time, and cause-and-effect.
 - BODY/PERSPECTIVE CONSISTENCY: Never reverse physical roles when switching between narration and dialogue. Track who is touching, holding, carrying, wearing, penetrating, containing, or positioned inside whom. First-person dialogue must preserve the same physical relationship already established by the scene.
 - Do not silently reset arguments, intimacy, danger, promises, emotional consequences, or unresolved events.
