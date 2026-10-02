@@ -10,6 +10,16 @@ test('daily tracker starts separately from historical monthly totals',async t=>{
  assert.ok(h.w.document.getElementById('dailyUsagePanel'));
  assert.equal(h.requests.length,0);
 });
+test('daily limit tracker defaults to 50, persists edits, and renders progress',async t=>{
+ const h=await app(t),u=h.w.NoctisDailyUsage;
+ assert.equal(u.snapshot().db.dailyLimit,50);
+ for(let i=0;i<12;i++)u.record({usage:{prompt_tokens:1,completion_tokens:1}},'free',true);
+ let panel=h.w.document.getElementById('dailyUsagePanel');
+ assert.match(panel.textContent,/12 \/ 50 used/);assert.match(panel.textContent,/38 requests remaining/);
+ assert.equal(u.setDailyLimit(20),true);assert.equal(u.snapshot().db.dailyLimit,20);
+ panel=h.w.document.getElementById('dailyUsagePanel');assert.match(panel.textContent,/12 \/ 20 used/);assert.match(panel.textContent,/60%/);
+ assert.equal(u.setDailyLimit(0),false);
+});
 test('records free tokens, reported billing, failures, missing usage, and per-model totals',async t=>{
  const h=await app(t),u=h.w.NoctisDailyUsage;
  u.record({usage:{prompt_tokens:10000,completion_tokens:500,cost:0}},'sample:free',true);
