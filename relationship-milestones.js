@@ -474,9 +474,11 @@ ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
     if(!ch || !msgs.length || Date.now()<Number(ch.relationshipMilestoneAutoRetryAt||0))return;
     const start=scanStartIndex(msgs);
     if(start>=msgs.length)return;
-    // Batch live detection and bound background use across all chats in this browser.
-    if(ch.relationshipMilestoneAutoCaughtUp && msgs.length-start<12){
-      ch.relationshipMilestoneAutoStatus=`Waiting to batch 12 new messages (${msgs.length-start}/12).`;renderAutoStatus();return;
+    // Batch ordinary live detection, but scan sooner when the newest scene contains an obvious relationship-milestone signal.
+    const recentText=msgs.slice(Math.max(start,msgs.length-4)).map(m=>String(m.text||'')).join('\n').toLowerCase();
+    const urgentSignal=/\b(i love you|love you|boyfriend|girlfriend|partner|dating|exclusive|committed|engaged|proposal|marry me|married|wedding|mated|mate bond|bonded|marked|claimed|fated|blood[- ]bound|pregnant|pregnancy|broke up|break up|we're done|reconciled|reconciliation)\b/i.test(recentText);
+    if(ch.relationshipMilestoneAutoCaughtUp && msgs.length-start<12 && !urgentSignal){
+      ch.relationshipMilestoneAutoStatus=`Waiting to batch 12 new messages (${msgs.length-start}/12). Obvious milestone language will trigger an earlier check.`;renderAutoStatus();return;
     }
     const day=new Date().toISOString().slice(0,10);
     let budget;try{budget=JSON.parse(localStorage.getItem('noctis-milestone-auto-budget')||'null');}catch{}
