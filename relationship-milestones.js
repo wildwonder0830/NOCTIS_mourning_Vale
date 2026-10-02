@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.3';
+  const VERSION = '1.3.4';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -319,9 +319,44 @@
   function cleanJson(raw){
     let text=String(raw||'').trim();
     text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
-    const a=text.indexOf('{'), b=text.lastIndexOf('}');
-    if(a>=0 && b>a) text=text.slice(a,b+1);
-    return JSON.parse(text);
+
+    const firstObj=text.indexOf('{'), firstArr=text.indexOf('[');
+    const starts=[firstObj,firstArr].filter(i=>i>=0);
+    if(starts.length) text=text.slice(Math.min(...starts));
+
+    const extractOrRepair=(input)=>{
+      const stack=[];let inString=false,escape=false,end=-1;
+      for(let i=0;i<input.length;i++){
+        const ch=input[i];
+        if(inString){
+          if(escape){escape=false;continue;}
+          if(ch==='\\'){escape=true;continue;}
+          if(ch==='"')inString=false;
+          continue;
+        }
+        if(ch==='"'){inString=true;continue;}
+        if(ch==='{'||ch==='[')stack.push(ch);
+        else if(ch==='}'||ch===']'){
+          const want=ch==='}'?'{':'[';
+          if(stack.at(-1)!==want)continue;
+          stack.pop();
+          if(!stack.length){end=i+1;break;}
+        }
+      }
+      let out=end>0?input.slice(0,end):input;
+      out=out.replace(/,\s*([}\]])/g,'$1').trim();
+      if(end<0 && stack.length){
+        for(let i=stack.length-1;i>=0;i--) out+=stack[i]==='{'?'}':']';
+      }
+      return out;
+    };
+
+    const candidates=[text,extractOrRepair(text)];
+    let lastErr;
+    for(const candidate of candidates){
+      try{return JSON.parse(candidate);}catch(err){lastErr=err;}
+    }
+    throw lastErr;
   }
 
   function presetForTitle(title){

@@ -1,8 +1,8 @@
-/* Noctis Mourning Vale v0.17.0 — Build Authority + Relationship Milestone Sync Loader */
+/* Noctis Mourning Vale v0.17.1 — Build Authority + Relationship Milestone Sync Loader */
 (() => {
   'use strict';
 
-  const CURRENT_BUILD = "0.17.0";
+  const CURRENT_BUILD = "0.17.1";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
 
   function forceBuildBadge() {
@@ -20,13 +20,13 @@
   }
 
   function loadRelationshipMilestones() {
-    if (window.NoctisRelationshipMilestones?.version === "1.3.3") return;
+    if (window.NoctisRelationshipMilestones?.version === "1.3.4") return;
 
     const old = document.querySelector('script[data-noctis-relationship-milestones]');
     if (old) return;
 
     const script = document.createElement("script");
-    script.src = "relationship-milestones.js?v=1.3.3";
+    script.src = "relationship-milestones.js?v=1.3.4";
     script.async = false;
     script.dataset.noctisRelationshipMilestones = "1";
 
