@@ -53,3 +53,11 @@ test('recent milestone discovered during first catch-up still celebrates',async 
  assert.equal(h.w.document.getElementById('rmCeremonyTitle').textContent,'Engaged');
  assert.ok(!h.w.document.getElementById('relationshipMilestoneCeremony').classList.contains('hidden'));
 });
+
+test('milestone sync repairs a truncated closing bracket response locally',async t=>{
+ const h=await boot();t.after(()=>h.close());
+ h.run(`settings.apiKey='test';activeChat().messages=[{id:'m1',role:'user',text:'Will you marry me?'},{id:'m2',role:'assistant',text:'Yes. We are engaged.'}];openRouterRequest=async()=>'{"milestones":[{"title":"Engaged","line":"They promised a future together.","evidence":"A proposal was accepted.","messageIndex":2,"confidence":"high"}}';`);
+ await h.w.NoctisRelationshipMilestones.sync();await h.settle();
+ assert.equal(h.run('activeChat().milestones.length'),0);
+ assert.match(h.w.document.getElementById('rmSyncStatus').textContent,/found 1|1 milestone/i);
+});
