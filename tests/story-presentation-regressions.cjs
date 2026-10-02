@@ -34,3 +34,22 @@ test('live automatic celebration waits until the matching chat is visible',async
  assert.equal(h.run('activeChat().milestones[0].pendingCelebration'),false);
  assert.ok(!h.w.document.getElementById('relationshipMilestoneCeremony').classList.contains('hidden'));
 });
+
+test('milestones have a dedicated top-level tab',async t=>{
+ const h=await boot();t.after(()=>h.close());
+ const d=h.w.document;
+ assert.ok(d.querySelector('.tab[data-tab="milestones"]'));
+ assert.ok(d.querySelector('[data-view="milestones"] #milestoneList'));
+ assert.ok(d.querySelector('[data-view="milestones"] #relationshipMilestonePanel'));
+ h.run('selectTab("milestones")');
+ assert.ok(d.querySelector('[data-view="milestones"]').classList.contains('active'));
+});
+
+test('recent milestone discovered during first catch-up still celebrates',async t=>{
+ const h=await boot();t.after(()=>h.close());
+ h.run(`settings.apiKey='test';activeChat().relationshipMilestoneAutoCaughtUp=false;activeChat().messages=[{id:'m1',role:'user',text:'Will you marry me?'},{id:'m2',role:'assistant',text:'Yes. We are engaged.'}];openRouterRequest=async()=>JSON.stringify({milestones:[{title:'Engaged',line:'They promised a future together.',evidence:'A proposal was accepted.',messageIndex:2,confidence:'high'}]});selectTab('chat');`);
+ await h.w.NoctisRelationshipMilestones.autoScan();await h.settle();
+ assert.equal(h.run('activeChat().milestones[0].pendingCelebration'),false);
+ assert.equal(h.w.document.getElementById('rmCeremonyTitle').textContent,'Engaged');
+ assert.ok(!h.w.document.getElementById('relationshipMilestoneCeremony').classList.contains('hidden'));
+});
