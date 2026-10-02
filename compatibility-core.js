@@ -38,6 +38,8 @@
     if(typeof ch.relationshipMemory !== "string") ch.relationshipMemory = "";
     if(typeof ch.consolidatedMemory !== "string") ch.consolidatedMemory = "";
     if(!("consolidatedThroughMessageId" in ch)) ch.consolidatedThroughMessageId = null;
+    if(!ch.knowledgeLedger || typeof ch.knowledgeLedger !== "object" || Array.isArray(ch.knowledgeLedger)) ch.knowledgeLedger = {};
+    ["known","unknown","recent","doNotAsk"].forEach(k => { if(typeof ch.knowledgeLedger[k] !== "string") ch.knowledgeLedger[k] = ""; });
     ch.scene = {
       location: str(ch.scene?.location), time: str(ch.scene?.time),
       state: str(ch.scene?.state), emotion: str(ch.scene?.emotion)

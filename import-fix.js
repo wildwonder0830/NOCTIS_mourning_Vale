@@ -259,6 +259,9 @@
         n.relationshipMemory=str(incoming?.relationshipMemory||incoming?.relationship_memory);
         n.consolidatedMemory=str(incoming?.consolidatedMemory||incoming?.consolidated_memory);
         n.consolidatedThroughMessageId=incoming?.consolidatedThroughMessageId||null;
+        if(incoming?.knowledgeLedger && typeof incoming.knowledgeLedger === "object" && !Array.isArray(incoming.knowledgeLedger)){
+          n.knowledgeLedger={known:str(incoming.knowledgeLedger.known),unknown:str(incoming.knowledgeLedger.unknown),recent:str(incoming.knowledgeLedger.recent),doNotAsk:str(incoming.knowledgeLedger.doNotAsk)};
+        }
         n.scene={...n.scene,...(incoming?.scene||{})};
         n.threads=arr(incoming?.threads);
         n.milestones=arr(incoming?.milestones);
