@@ -56,7 +56,7 @@
   });
   label.append(select); reading.append(label); chatTools.append(reading);
 
-  const titles = {library:'Library', character:'Character', persona:'Personas', chat:'Your story', memory:'Memory', lore:'Lorebook', rescue:'RP Rescue', settings:'Settings', stats:'Story stats'};
+  const titles = {library:'Library', character:'Character', persona:'Personas', chat:'Your story', memory:'Memory', milestones:'Milestones', lore:'Lorebook', rescue:'RP Rescue', settings:'Settings', stats:'Story stats'};
   const heading = document.querySelector('#topbar h1');
   function refresh() {
     const view = document.querySelector('.view.active')?.dataset.view;
