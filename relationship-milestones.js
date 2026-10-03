@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.4';
+  const VERSION = '1.3.5';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -443,6 +443,9 @@ Otherwise use a short custom title such as "First Kiss", "Love Confessed", "Reco
 
 STRICT RULES:
 - The event must actually occur in the supplied transcript or be unambiguously established as already-canon there.
+- CHARACTER/assistant narration is not self-verifying evidence for a protagonist-affecting permanent event. For sex, first intimacy, orgasm, biting/marking, mate/bond/claim states, engagement, marriage, pregnancy, children, transformation, major injury, moving in, breakup, or reconciliation, require explicit PROTAGONIST participation/confirmation in the transcript or an already-recorded canon source.
+- If a CHARACTER reply invents a mark, bond, sexual event, child, or other milestone and the PROTAGONIST does not confirm or participate in it, do NOT archive it as a completed milestone.
+- Possessive language and labels such as "mine", "mate", "Alpha", "claimed", or "owned" are not proof that a supernatural/relationship state actually exists.
 - Do not count plans, fantasies, hypotheticals, flirting, teasing, ordinary kisses after the first, routine sex, repeated references to an already-counted event, or temporary emotions.
 - Chemistry alone is not Interested, Courting, Dating, Mated, Fated, etc.
 - Never infer consent to a permanent bond. Mated, Marked, Bonded, Blood-Bound, marriage, engagement, claiming, pregnancy decisions, or similar permanent states require explicit story evidence.
