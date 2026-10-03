@@ -1599,13 +1599,20 @@ $("generateMyTurnBtn").addEventListener("click",generateMyTurn);
 
 $("regenBtn").addEventListener("click",async()=>{
   if(mainGenerationBusy)return;
-  const ch=activeChat(),m=ch.messages;
-  const last=m.at(-1);
-  if(last?.role==="assistant"){
-    if(m.at(-2)?.role!=="user")return;
+  const ch=activeChat();
+  const conversation=getConversationMessages(ch);
+  const last=conversation.at(-1);
 
-  }else if(last?.role!=="user")return;
-  await generateReply("",last?.role==="assistant"?last:null);
+  if(last?.role==="assistant"){
+    const previous=conversation.at(-2);
+    if(previous?.role!=="user")return;
+    await generateReply("",last);
+    return;
+  }
+
+  if(last?.role==="user"){
+    await generateReply();
+  }
 });
 $("clearChatBtn").addEventListener("click",()=>{if(confirm("Clear this timeline's transcript? Character canon, lore, and memory remain.")){activeChat().messages=[];saveVault();renderMessages()}});
 
