@@ -8,7 +8,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.3.5';
+  const VERSION = '1.3.6';
   if(window.NoctisRelationshipMilestones?.version===VERSION)return;
   const TYPE = 'relationship';
   const SCAN_CHARS = 14000;
@@ -318,43 +318,58 @@
 
   function cleanJson(raw){
     let text=String(raw||'').trim();
-    text=text.replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'').trim();
+    text=text.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
 
-    const firstObj=text.indexOf('{'), firstArr=text.indexOf('[');
-    const starts=[firstObj,firstArr].filter(i=>i>=0);
-    if(starts.length) text=text.slice(Math.min(...starts));
+    const repairSyntax=input=>String(input||'')
+      .replace(/,\s*([}\]])/g,'$1')
+      .trim();
 
-    const extractOrRepair=(input)=>{
-      const stack=[];let inString=false,escape=false,end=-1;
-      for(let i=0;i<input.length;i++){
-        const ch=input[i];
-        if(inString){
-          if(escape){escape=false;continue;}
-          if(ch==='\\'){escape=true;continue;}
-          if(ch==='"')inString=false;
-          continue;
+    const balancedCandidates=input=>{
+      const out=[];
+      for(let start=0;start<input.length;start++){
+        const opener=input[start];
+        if(opener!=='{' && opener!=='[')continue;
+        const stack=[opener];
+        let inString=false,escape=false;
+        for(let i=start+1;i<input.length;i++){
+          const ch=input[i];
+          if(inString){
+            if(escape){escape=false;continue;}
+            if(ch==='\\'){escape=true;continue;}
+            if(ch==='"')inString=false;
+            continue;
+          }
+          if(ch==='"'){inString=true;continue;}
+          if(ch==='{'||ch==='[')stack.push(ch);
+          else if(ch==='}'||ch===']'){
+            const want=ch==='}'?'{':'[';
+            if(stack.at(-1)!==want)break;
+            stack.pop();
+            if(!stack.length){
+              out.push(input.slice(start,i+1));
+              break;
+            }
+          }
         }
-        if(ch==='"'){inString=true;continue;}
-        if(ch==='{'||ch==='[')stack.push(ch);
-        else if(ch==='}'||ch===']'){
-          const want=ch==='}'?'{':'[';
-          if(stack.at(-1)!==want)continue;
-          stack.pop();
-          if(!stack.length){end=i+1;break;}
-        }
-      }
-      let out=end>0?input.slice(0,end):input;
-      out=out.replace(/,\s*([}\]])/g,'$1').trim();
-      if(end<0 && stack.length){
-        for(let i=stack.length-1;i>=0;i--) out+=stack[i]==='{'?'}':']';
       }
       return out;
     };
 
-    const candidates=[text,extractOrRepair(text)];
-    let lastErr;
+    const candidates=[];
+    const milestonePos=text.search(/["']?milestones["']?\s*:/i);
+    if(milestonePos>=0){
+      const objectStart=text.lastIndexOf('{',milestonePos);
+      if(objectStart>=0)candidates.push(...balancedCandidates(text.slice(objectStart)));
+    }
+    candidates.push(...balancedCandidates(text),text);
+
+    let lastErr=new SyntaxError('No JSON object found in milestone response');
     for(const candidate of candidates){
-      try{return JSON.parse(candidate);}catch(err){lastErr=err;}
+      try{
+        const parsed=JSON.parse(repairSyntax(candidate));
+        if(Array.isArray(parsed?.milestones))return parsed;
+        if(Array.isArray(parsed))return {milestones:parsed};
+      }catch(err){lastErr=err;}
     }
     throw lastErr;
   }
@@ -479,12 +494,28 @@ ${transcript}
 ALREADY RECORDED — do not repeat these events:
 ${history().map(m=>`${m.title}: ${m.line}`).join('\n')||'(none)'}`;
 
-    const raw=await openRouterRequest([
-      {role:'system',content:'Return ONLY valid JSON for retrospective fictional relationship milestone extraction. Never invent events.'},
+    const requestMessages=[
+      {role:'system',content:'Return ONLY one valid JSON object for retrospective fictional relationship milestone extraction. No markdown, commentary, labels, or prose before or after the JSON. Never invent events.'},
       {role:'user',content:prompt}
-    ],1400,0.02);
+    ];
 
-    const data=cleanJson(raw);
+    let raw=await openRouterRequest(requestMessages,1400,0.02);
+    let data;
+    try{
+      data=cleanJson(raw);
+    }catch(firstErr){
+      // Models occasionally leak prose into structured output. Retry the extraction once
+      // from the source transcript instead of advancing the checkpoint with bad data.
+      raw=await openRouterRequest([
+        {role:'system',content:'STRICT JSON MODE. Return exactly one JSON object matching the requested schema. Begin with { and end with }. Do not include markdown fences, explanations, analysis, or any text outside JSON.'},
+        {role:'user',content:prompt}
+      ],1400,0);
+      try{
+        data=cleanJson(raw);
+      }catch(secondErr){
+        throw new Error(`Invalid milestone JSON after one automatic retry: ${secondErr?.message||String(secondErr)}`);
+      }
+    }
     if(!Array.isArray(data?.milestones))throw new Error('Invalid milestone response; scan progress was not advanced');
     const arr=data.milestones;
     return arr.map(x=>normalizeSuggestion(x,msgs)).filter(Boolean);
