@@ -1214,9 +1214,55 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
       if(response.ok){
         const text=data?.choices?.[0]?.message?.content;
+        const finishReason=String(data?.choices?.[0]?.finish_reason||"").toLowerCase();
 
         if(text && String(text).trim()){
-          return String(text).trim();
+          const first=String(text).trim();
+
+          // A provider can stop mid-sentence when it hits its output-token ceiling.
+          // For normal story RP only, finish that SAME turn once instead of saving
+          // a visibly chopped reply. Structured/background jobs are never continued.
+          const joined=Array.isArray(messages)?messages.map(m=>String(m?.content||"")).join("\n"):"";
+          const mainRp=/NOCTIS CORE CONTINUITY RULES/i.test(joined) &&
+            !/PHONE\s*\/\s*TEXT MESSAGE MODE|STRICT JSON|Return ONLY valid JSON|Return strict JSON|STATS PACKET|SOCIAL FEED GENERATOR/i.test(joined);
+
+          if(finishReason==="length" && mainRp){
+            const continuationPayload={
+              ...payload,
+              messages:[
+                ...messages,
+                {role:"assistant",content:first},
+                {role:"system",content:"The previous assistant turn was cut off only because the provider hit its output limit. Continue the SAME reply exactly where it stopped. Finish the current sentence and immediate NPC/world beat only. Do not repeat prior text, start a new scene, advance the protagonist, or add a new user turn. End naturally at the protagonist response boundary."}
+              ],
+              max_tokens:Math.min(700,Math.max(256,Number(maxTokens??900)))
+            };
+            const c2=new AbortController();
+            const t2=setTimeout(()=>c2.abort(),30000);
+            try{
+              const r2=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+                method:"POST",
+                headers:{
+                  "Authorization":`Bearer ${settings.apiKey}`,
+                  "Content-Type":"application/json",
+                  "HTTP-Referer":location.href,
+                  "X-Title":"Noctis Mourning Vale"
+                },
+                body:JSON.stringify(continuationPayload),
+                signal:c2.signal
+              });
+              clearTimeout(t2);
+              const d2=await r2.json().catch(()=>({}));
+              const tail=d2?.choices?.[0]?.message?.content;
+              if(r2.ok && tail && String(tail).trim()){
+                return `${first}\n${String(tail).trim()}`.trim();
+              }
+            }catch(err){
+              clearTimeout(t2);
+              console.warn("Noctis automatic cutoff recovery failed; keeping the original reply.",err);
+            }
+          }
+
+          return first;
         }
 
         // Some free providers occasionally return a successful envelope with no text.
