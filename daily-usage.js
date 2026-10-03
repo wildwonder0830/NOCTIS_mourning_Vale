@@ -6,6 +6,8 @@
   // Paid Nemotron Ultra comparison rate, verified 2026-09-30; not a bill.
   const RATE={input:0.50,output:2.20};
   const localDay=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const DAILY_RESET_HOUR=17;
+  const limitPeriodKey=(d=new Date())=>{const shifted=new Date(d.getTime());shifted.setHours(shifted.getHours()-DAILY_RESET_HOUR);return localDay(shifted);};
   const money=n=>`$${Number(n||0).toFixed(2)}`;
   const number=n=>Math.round(n||0).toLocaleString();
   const empty=()=>({requests:0,failed:0,input:0,output:0,unmetered:0,reportedCost:0,costReported:0,byModel:{}});
@@ -16,11 +18,14 @@
       const data=JSON.parse(localStorage.getItem(KEY)||'null');
       if(data?.version===1 && data.days && data.startedDay){
         if(!Number.isFinite(Number(data.dailyLimit))||Number(data.dailyLimit)<1)data.dailyLimit=DEFAULT_DAILY_LIMIT;
+        const period=limitPeriodKey();
+        if(data.limitPeriod!==period){data.limitPeriod=period;data.limitUsed=0;}
+        if(!Number.isFinite(Number(data.limitUsed))||Number(data.limitUsed)<0)data.limitUsed=0;
         return data;
       }
     }catch{}
     const d=new Date();
-    return {version:1,startedAt:d.toISOString(),startedDay:localDay(d),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,dailyLimit:DEFAULT_DAILY_LIMIT,days:{}};
+    return {version:1,startedAt:d.toISOString(),startedDay:localDay(d),timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,dailyLimit:DEFAULT_DAILY_LIMIT,limitPeriod:limitPeriodKey(d),limitUsed:0,days:{}};
   }
   function save(db){
     try{localStorage.setItem(KEY,JSON.stringify(db));storageError='';}
@@ -28,16 +33,17 @@
   }
   save(load());
   function comparison(row){return (row.input*RATE.input+row.output*RATE.output)/1e6;}
-  function limitState(row,limit){
-    const safe=Math.max(1,Number(limit)||DEFAULT_DAILY_LIMIT),used=Math.max(0,Number(row?.requests)||0);
-    return {limit:safe,used,remaining:Math.max(0,safe-used),percent:Math.min(100,used/safe*100),over:used>=safe};
+  function limitState(used,limit){
+    const safe=Math.max(1,Number(limit)||DEFAULT_DAILY_LIMIT),count=Math.max(0,Number(used)||0);
+    return {limit:safe,used:count,remaining:Math.max(0,safe-count),percent:Math.min(100,count/safe*100),over:count>=safe};
   }
   function setDailyLimit(value){
     const n=Math.round(Number(value));if(!Number.isFinite(n)||n<1)return false;
     const db=load();db.dailyLimit=n;save(db);render();return true;
   }
   function record(data,model,ok,startedAt=Date.now()){
-    const db=load(),day=localDay(new Date(startedAt));
+    const db=load(),started=new Date(startedAt),day=localDay(started),period=limitPeriodKey(started);
+    if(db.limitPeriod!==period){db.limitPeriod=period;db.limitUsed=0;}
     const row=db.days[day]||(db.days[day]=empty());
     const modelRow=row.byModel[model]||(row.byModel[model]=empty());
     for(const target of [row,modelRow]){
@@ -51,6 +57,7 @@
         target.reportedCost+=Math.max(0,usage.cost);target.costReported++;
       }
     }
+    if(ok)db.limitUsed=(Number(db.limitUsed)||0)+1;
     save(db);window.NoctisActiveUsage?.record(data,model,ok,startedAt);render();
   }
   function snapshot(date=new Date()){
@@ -91,7 +98,7 @@
     // Preserve an open report and its selection while background requests finish.
     if(panel.querySelector('#dailyUsageReport'))return;
     window.NoctisActiveUsage?.render();
-    const s=snapshot(),today=s.rows.at(-1),ready=s.completeDays>=5,limit=limitState(today,s.db.dailyLimit);
+    const s=snapshot(),today=s.rows.at(-1),ready=s.completeDays>=5,limit=limitState(s.db.limitUsed,s.db.dailyLimit);
     panel.innerHTML=`<h3>Daily Usage · 7-Day Study</h3>
       <p class="hint">Started ${s.db.startedDay} · this browser only · local calendar days. Your earlier monthly total stays separate.</p>
       <div class="daily-limit-card" aria-label="Daily request limit progress">
@@ -99,7 +106,7 @@
         <div class="daily-limit-bar" role="progressbar" aria-valuemin="0" aria-valuemax="${limit.limit}" aria-valuenow="${Math.min(limit.used,limit.limit)}"><span style="width:${limit.percent.toFixed(1)}%"></span></div>
         <div class="daily-limit-meta"><span>${limit.over?'Limit reached or exceeded':`${number(limit.remaining)} requests remaining`}</span><span>${Math.round(limit.percent)}%</span></div>
         <label class="daily-limit-setting">Daily request limit <input id="dailyLimitInput" type="number" min="1" step="1" inputmode="numeric" value="${limit.limit}"></label>
-        <p class="hint tiny">Set this to the allowance your provider/model gives you. Progress uses successful requests recorded by this browser; provider accounting may differ, and other devices are not included.</p>
+        <p class="hint tiny">Resets automatically at 5:00 PM local time. Set this to the allowance your provider/model gives you. Progress uses successful requests recorded by this browser; provider accounting may differ, and other devices are not included.</p>
       </div>
       <div class="usage-grid"><div><strong>${number(today.requests)}</strong><span>successful requests today</span></div><div><strong>${number(today.failed)}</strong><span>failed attempts today</span></div><div><strong>${money(comparison(today))}</strong><span>today’s paid Nemotron equivalent</span></div><div><strong>${s.completeDays}</strong><span>${ready?'enough full days for an initial estimate':'unrestricted full days (historical view)'}</span></div></div>
       <div class="daily-usage-scroll"><table><thead><tr><th>Day</th><th>Requests</th><th>Failed</th><th>Input</th><th>Output</th><th>Paid equivalent</th></tr></thead><tbody>${s.rows.map(r=>`<tr><th>${r.day.slice(5)}${r.partial&&r.tracked?' *':''}${r.limited?' · Limited':''}</th>${r.tracked?`<td>${number(r.requests)}</td><td>${number(r.failed)}</td><td>${number(r.input)}</td><td>${number(r.output)}</td><td>${money(comparison(r))}</td>`:'<td colspan="5">Not tracked</td>'}</tr>`).join('')}</tbody></table></div>
@@ -122,7 +129,7 @@
   }
   const style=document.createElement('style');style.textContent='.daily-usage-panel{margin:20px 0;padding:16px;border:1px solid var(--line,#49354f);border-radius:16px}.daily-limit-card{margin:14px 0 16px;padding:14px;border:1px solid rgba(170,126,255,.28);border-radius:14px;background:rgba(91,54,128,.08)}.daily-limit-head,.daily-limit-meta{display:flex;justify-content:space-between;gap:12px;align-items:center}.daily-limit-bar{height:12px;margin:10px 0 7px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;border:1px solid rgba(255,255,255,.08)}.daily-limit-bar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent,#8b5cf6),var(--accent2,#c084fc));transition:width .2s ease}.daily-limit-meta{font-size:.86rem}.daily-limit-setting{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-top:12px}.daily-limit-setting input{max-width:110px}.daily-usage-scroll{overflow-x:auto;margin-top:14px}.daily-usage-panel table{width:100%;border-collapse:collapse;font-size:.85rem;white-space:nowrap}.daily-usage-panel th,.daily-usage-panel td{padding:9px 10px;text-align:right;border-bottom:1px solid #49354f}.daily-usage-panel th:first-child{text-align:left}.daily-usage-panel textarea{margin-top:12px;width:100%}';document.head.appendChild(style);
   function markLimited(at=Date.now()){const db=load(),key=localDay(new Date(at));const row=db.days[key]||(db.days[key]=empty());row.limited=true;save(db);render();}
-  window.NoctisDailyUsage={record,render,snapshot,summary,markLimited,setDailyLimit,limitState};
+  window.NoctisDailyUsage={record,render,snapshot,summary,markLimited,setDailyLimit,limitState,limitPeriodKey};
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)render();});
   window.addEventListener('pageshow',render);
   setInterval(()=>{if(!document.hidden)render();},60000);

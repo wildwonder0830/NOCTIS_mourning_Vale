@@ -88,3 +88,11 @@ test('hidden pages pause and reload keeps samples without counting away time',as
  const saved=JSON.parse(h.w.localStorage.getItem('noctis-active-usage-v1'));
  const next=await app(t,{'noctis-active-usage-v1':saved});assert.equal(next.w.NoctisActiveUsage.snapshot().running,false);
 });
+
+test('daily limit period rolls over at 5 PM local time',async t=>{
+ const h=await app(t),u=h.w.NoctisDailyUsage;
+ const before=new h.w.Date(2026,9,2,16,59,59), after=new h.w.Date(2026,9,2,17,0,1);
+ assert.notEqual(u.limitPeriodKey(before),u.limitPeriodKey(after));
+ assert.equal(u.limitPeriodKey(after),'2026-10-02');
+ assert.equal(u.limitPeriodKey(before),'2026-10-01');
+});
