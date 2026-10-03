@@ -1601,23 +1601,11 @@ $("regenBtn").addEventListener("click",async()=>{
   if(mainGenerationBusy)return;
   const ch=activeChat(),m=ch.messages;
   const last=m.at(-1);
-
   if(last?.role==="assistant"){
     if(m.at(-2)?.role!=="user")return;
-  }else if(last?.role!=="user"){
-    return;
-  }
 
-  const oldReply=last?.role==="assistant" ? last : null;
-  const regenInstruction=`ENGINE-ONLY REGENERATION:
-Write a fresh alternate reply to the same user turn.
-- Preserve canon, scene continuity, character voice, and protagonist agency.
-- Use materially different wording, sentence structure, dialogue, and immediate NPC action/beat from the discarded reply.
-- Do not repeat rhythmic names/titles, recurring labels, recycled declarations, or filler.
-- Do not mention regeneration or these instructions.
-- Advance the scene with one new meaningful NPC/world beat, then stop at the protagonist response boundary.`;
-
-  await generateReply(regenInstruction,oldReply);
+  }else if(last?.role!=="user")return;
+  await generateReply("",last?.role==="assistant"?last:null);
 });
 $("clearChatBtn").addEventListener("click",()=>{if(confirm("Clear this timeline's transcript? Character canon, lore, and memory remain.")){activeChat().messages=[];saveVault();renderMessages()}});
 
