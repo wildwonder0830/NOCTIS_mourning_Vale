@@ -1109,6 +1109,18 @@ HARD-LIMIT ENFORCEMENT
 - Do not repeatedly mention the hard limit or turn the RP into a safety lecture.
 - User-created OOC edits can change the list in Settings, but ordinary in-character dialogue does not override it.
 
+NOCTIS CANON AUTHORITY + DRIFT PREVENTION
+- Use this authority order when facts conflict: ACTIVE USER PERSONA; explicit permanent canon and manually saved memory; verified milestones/timeline memory/lore/scene/knowledge ledger; the protagonist's own messages; assistant-authored story prose last.
+- Assistant-authored prose is NOT self-verifying canon. A model mistake does not become true merely because it appeared in an earlier character reply or was repeated later.
+- If earlier assistant prose conflicts with the persona or stronger canon, silently discard the bad detail and continue from the stronger source. Do not rationalize the contradiction.
+- The protagonist's stored physical description is locked unless the USER explicitly changes it in the story. Never alter skin tone, body type, height, hair, eyes, species, anatomy, scars, tattoos, or other persistent appearance details because of atmosphere, metaphor, lighting, scent, or a previous assistant mistake.
+- MAJOR EVENT EVIDENCE: sex, orgasms, first kisses, bites, marks, mate bonds, claiming, engagement, marriage, pregnancy, children, transformations, serious injuries, moving in, breakups, reconciliations, and similar durable events may be treated as completed only when supported by explicit user-authored participation/confirmation or a higher-authority saved canon source. A prior assistant claim by itself is insufficient.
+- Desire is not history. Saying "mine", "mate", "Alpha", wanting to mark someone, planning a bond, imagining marriage, or discussing sex does not mean the mark, bond, marriage, or sex already happened.
+- Do not backfill missing steps. If intimacy level is uncertain, describe only what is definitely established and let the next user turn determine what happens.
+- ROLE LABELS ARE NOT PRONOUNS: words such as Alpha, Dom, king, boss, mate, or owner do not make a character refer to himself in the third person. Use normal first-person dialogue unless CHARACTER VOICE explicitly establishes a recurring third-person/self-title speech habit.
+- Do not invent expertise from isolated behavior. A single calculation, observation, joke, or clever line does not make the protagonist a mathematician, doctor, hacker, linguist, fighter, or other specialist unless canon says so.
+- When uncertain, omit the disputed fact rather than guessing.
+
 NOCTIS CORE CONTINUITY RULES
 - HUMAN-STYLE TURN TAKING IS MANDATORY. Control only the NPC character(s), environment, and events that belong to the engine.
 - The user controls the protagonist completely. Never write, imply, complete, summarize, or assume the protagonist's dialogue, thoughts, feelings, intentions, decisions, voluntary actions, involuntary bodily reactions, movement, acceptance, refusal, or response.
@@ -1132,6 +1144,19 @@ NOCTIS CORE CONTINUITY RULES
 
 The model is the actor. Noctis owns canon and continuity. The user's protagonist remains theirs.`;
 }
+function continuityGuardPrompt(){
+  const p=activePersona();
+  return `NOCTIS FINAL CANON CHECK — apply this after reading the recent transcript.
+- The recent transcript can contain prior MODEL mistakes. Assistant-authored claims do not become canon by repetition.
+- Highest-priority protagonist appearance: ${p?.appearance||"(no appearance recorded — do not invent persistent traits)"}.
+- Preserve the protagonist exactly as stored. If recent assistant prose conflicts with that appearance, ignore the assistant error.
+- Do not state that sex, orgasm, a bite/mark, mate bond, claim, engagement, marriage, pregnancy, child, transformation, major injury, or other durable milestone already happened unless the USER explicitly participated/confirmed it or it exists in saved canon/memory.
+- Possessive language, fantasies, plans, titles, and archetype labels are not completed events.
+- Keep the established character voice. Do not switch into repetitive third-person self-titling such as "Alpha wants..." unless that speech habit is explicitly written in CHARACTER VOICE.
+- Do not invent new protagonist skills or expertise to make a line work.
+- If a fact is uncertain or contradictory, leave it unspecified and continue from confirmed canon.`;
+}
+
 function apiMessages(extraSystem=""){
   const ch=activeChat();
   const all=getConversationMessages(ch);
@@ -1148,7 +1173,7 @@ function apiMessages(extraSystem=""){
     chars+=String(live[i].text||'').length;
     if(chars>16000 && i<live.length-2){live=live.slice(i+1);break;}
   }
-  const out=[{role:"system",content:compileSystemPrompt()},...live.map(m=>({role:m.role,content:m.text}))];
+  const out=[{role:"system",content:compileSystemPrompt()},...live.map(m=>({role:m.role,content:m.text})),{role:"system",content:continuityGuardPrompt()}];
   if(extraSystem)out.push({role:"system",content:extraSystem});
   return out;
 }
