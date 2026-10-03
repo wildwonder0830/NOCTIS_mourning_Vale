@@ -1537,13 +1537,43 @@ $("generateMyTurnBtn").addEventListener("click",generateMyTurn);
 
 $("regenBtn").addEventListener("click",async()=>{
   if(mainGenerationBusy)return;
-  const ch=activeChat(),m=ch.messages;
-  const last=m.at(-1);
-  if(last?.role==="assistant"){
-    if(m.at(-2)?.role!=="user")return;
 
-  }else if(last?.role!=="user")return;
-  await generateReply("",last?.role==="assistant"?last:null);
+  const ch=activeChat();
+  const conversation=getConversationMessages(ch);
+  const last=conversation.at(-1);
+  if(!last)return;
+
+  if(last.role==="user"){
+    await generateReply();
+    return;
+  }
+
+  if(last.role!=="assistant")return;
+
+  // Never regenerate an assistant-only opening; there must be at least one
+  // actual user turn somewhere before this reply.
+  const lastIndex=conversation.lastIndexOf(last);
+  if(!conversation.slice(0,lastIndex).some(m=>m.role==="user"))return;
+
+  // Preserve engine context for replies created by OOC / Continue / Elaborate.
+  let extraSystem="";
+  if(last.continuationMode==="continue"){
+    extraSystem=`ENGINE-ONLY INSTRUCTION: Continue the character/world side of the current turn. The user is asking for more from the NPC/world before taking their own turn. Continue only with NPC actions, dialogue, environmental events, or consequences that do NOT require assuming any action, reaction, choice, sensation, or dialogue from the user's protagonist. The instant the protagonist must respond or act, STOP and hand the turn back to the user.`;
+  }else if(last.continuationMode==="elaborate"){
+    extraSystem=`ENGINE-ONLY INSTRUCTION: Elaborate on the character/world side of the CURRENT MOMENT without changing what the user's protagonist has done. Add richer NPC expression, dialogue, atmosphere, physical detail, subtext, or relevant world detail. Do not repeat the previous reply verbatim. Do not move the user's protagonist, decide for them, narrate their sensations/reactions, or assume they answered. Do not advance past a point where the protagonist must act or respond. Stop there and hand the turn back to the user.`;
+  }else{
+    const rawIndex=ch.messages.findIndex(m=>m===last || (m.id&&last.id&&m.id===last.id));
+    const prev=rawIndex>0?ch.messages[rawIndex-1]:null;
+    if(prev?.role==="command" && /^OOC\s*•\s*/i.test(prev.text||"")){
+      const instruction=String(prev.text||"").replace(/^OOC\s*•\s*/i,"").trim();
+      if(instruction){
+        extraSystem=`ENGINE-ONLY OOC INSTRUCTION: ${instruction}
+This is direction from the user, not dialogue or canon. Follow it for the regenerated reply without treating the instruction itself as something the protagonist said or did.`;
+      }
+    }
+  }
+
+  await generateReply(extraSystem,last);
 });
 $("clearChatBtn").addEventListener("click",()=>{if(confirm("Clear this timeline's transcript? Character canon, lore, and memory remain.")){activeChat().messages=[];saveVault();renderMessages()}});
 
