@@ -1601,27 +1601,21 @@ $("regenBtn").addEventListener("click",async()=>{
   if(mainGenerationBusy)return;
   const ch=activeChat(),m=ch.messages;
   const last=m.at(-1);
+
   if(last?.role==="assistant"){
     if(m.at(-2)?.role!=="user")return;
-  }else if(last?.role!=="user")return;
+  }else if(last?.role!=="user"){
+    return;
+  }
 
   const oldReply=last?.role==="assistant" ? last : null;
-  const regenInstruction=oldReply
-    ? `ENGINE-ONLY REGENERATION INSTRUCTION:
-Generate a genuinely different alternate reply to the same user turn.
-
-STRICT REGEN RULES:
-- Do NOT reproduce, lightly paraphrase, or preserve the structure of the discarded assistant reply below.
-- Change the NPC's wording, sentence openings, rhythm, imagery, and immediate action/beat while preserving canon, character voice, scene state, and protagonist agency.
-- Do not reuse distinctive phrases, pet names, epithets, titles, metaphors, declarations, or repeated emotional conclusions from the discarded reply unless absolutely required by canon.
-- If the discarded reply used repetitive name/title fragments, remove that pattern entirely.
-- The new reply must materially advance the scene and feel like an alternate take written fresh from the same prompt.
-- Never mention regeneration, the discarded reply, or these instructions in character.
-
-DISCARDED REPLY — NEGATIVE EXAMPLE ONLY; DO NOT COPY:
-${oldReply.text}`
-    : `ENGINE-ONLY REGENERATION INSTRUCTION:
-Generate a fresh alternate continuation. Do not reuse wording, sentence structure, repeated labels, or signature phrases from the most recent assistant prose. Preserve canon and protagonist agency while choosing a materially different NPC action/dialogue beat.`;
+  const regenInstruction=`ENGINE-ONLY REGENERATION:
+Write a fresh alternate reply to the same user turn.
+- Preserve canon, scene continuity, character voice, and protagonist agency.
+- Use materially different wording, sentence structure, dialogue, and immediate NPC action/beat from the discarded reply.
+- Do not repeat rhythmic names/titles, recurring labels, recycled declarations, or filler.
+- Do not mention regeneration or these instructions.
+- Advance the scene with one new meaningful NPC/world beat, then stop at the protagonist response boundary.`;
 
   await generateReply(regenInstruction,oldReply);
 });
