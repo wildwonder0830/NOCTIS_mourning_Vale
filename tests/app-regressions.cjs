@@ -73,6 +73,14 @@ test('in-flight reply stays with original timeline and duplicate generation is b
  assert.equal(h.run('origin.messages.at(-1).text'),'Original reply');assert.equal(h.run('activeChat().messages.length'),0);
  assert.equal(h.w.document.getElementById('sendBtn').disabled,false);
 });
+test('regen ignores trailing non-conversation records',async t=>{
+ const h=await app(t);
+ h.run('activeChat().messages=[{id:"u",role:"user",text:"Hello"},{id:"a",role:"assistant",text:"Original reply"},{id:"n",role:"systemnote",text:"Milestone saved"}];openRouterRequest=async()=>"Fresh reply";renderMessages();');
+ h.w.document.getElementById('regenBtn').click();await h.settle();
+ assert.equal(h.run('getConversationMessages(activeChat()).at(-1).text'),'Fresh reply');
+ assert.equal(h.run('activeChat().messages.some(m=>m.id==="a")'),false);
+});
+
 test('regenerate never removes an assistant-only opening',async t=>{
  const h=await app(t);const before=h.run('JSON.stringify(activeChat().messages)');
  h.w.document.getElementById('regenBtn').click();await h.settle();
