@@ -21,6 +21,10 @@ test('final continuity guard re-anchors persona appearance and major events', ()
   assert.match(app, /Highest-priority protagonist appearance/);
   assert.match(app, /Do not state that sex, orgasm, a bite\/mark, mate bond/);
   assert.match(app, /third-person self-titling/);
+  assert.match(app, /ACTIVE PERSONA IS LOCKED CANON/);
+  assert.match(app, /Never substitute a different skin tone\/complexion/);
+  assert.match(app, /NO REPETITION:/);
+  assert.match(app, /X is listening\. X is waiting\. X is yours/);
   assert.match(app, /content:continuityGuardPrompt\(\)/);
 });
 
@@ -31,9 +35,9 @@ test('milestone scanner rejects assistant-only permanent-event inventions', () =
   assert.match(milestones, /const VERSION = '1\.3\.5'/);
 });
 
-test('build and cache bust are 0.17.3', () => {
-  assert.match(build, /CURRENT_BUILD = "0\.17\.3"/);
+test('build and cache bust are 0.17.4', () => {
+  assert.match(build, /CURRENT_BUILD = "0\.17\.4"/);
   assert.match(build, /relationship-milestones\.js\?v=1\.3\.5/);
-  assert.match(index, /app\.js\?v=0\.17\.3/);
-  assert.doesNotMatch(index, /v=0\.17\.2/);
+  assert.match(index, /app\.js\?v=0\.17\.4/);
+  assert.doesNotMatch(index, /v=0\.17\.3/);
 });
