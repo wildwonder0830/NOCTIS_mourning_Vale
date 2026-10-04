@@ -58,6 +58,40 @@ test('milestone memory replacement is idempotent and deletion removes the block'
  h.run('activeChat().milestones=[];syncMilestonesToMemory();');
  assert.equal(h.run('activeChat().relationshipMemory'),'Manual memory');
 });
+test('legacy single character migrates into first full cast sheet',async t=>{
+ const h=await app(t);
+ h.run('const c=activeCharacter();c.castMembers=[];c.activeCastMemberId=null;c.name="Dante Story";c.role="Don";c.voice="Low and rough";normalizeVaultV07();');
+ assert.equal(h.run('activeCharacter().castMembers.length'),1);
+ assert.equal(h.run('activeCharacter().castMembers[0].name'),'Dante Story');
+ assert.equal(h.run('activeCharacter().castMembers[0].role'),'Don');
+ assert.equal(h.run('activeCharacter().castMembers[0].voice'),'Low and rough');
+});
+
+test('multiple bot sheets edit independently and track scene presence',async t=>{
+ const h=await app(t);
+ h.run('const c=activeCharacter();c.castMembers=[newCastMember("Rhydian"),newCastMember("Dante")];c.activeCastMemberId=c.castMembers[0].id;activeChat().sceneCast=[];renderAll();');
+ h.w.document.getElementById('charVoice').value='Rhydian voice';
+ h.w.document.getElementById('charVoice').dispatchEvent(new h.w.Event('input',{bubbles:true}));
+ h.run('activeCharacter().activeCastMemberId=activeCharacter().castMembers[1].id;renderAll();');
+ h.w.document.getElementById('charVoice').value='Dante voice';
+ h.w.document.getElementById('charVoice').dispatchEvent(new h.w.Event('input',{bubbles:true}));
+ assert.equal(h.run('activeCharacter().castMembers[0].voice'),'Rhydian voice');
+ assert.equal(h.run('activeCharacter().castMembers[1].voice'),'Dante voice');
+ h.w.document.getElementById('castMemberInScene').checked=true;
+ h.w.document.getElementById('castMemberInScene').dispatchEvent(new h.w.Event('change',{bubbles:true}));
+ assert.equal(h.run('activeChat().sceneCast.some(x=>x.castMemberId===activeCharacter().castMembers[1].id)'),true);
+});
+
+test('system prompt separates present and off-scene cast members',async t=>{
+ const h=await app(t);
+ h.run('const c=activeCharacter();c.name="Three Mates";c.castMembers=[newCastMember("Rhydian"),newCastMember("Dante"),newCastMember("Cassian")];c.castMembers[0].voice="R voice";c.castMembers[1].voice="D voice";c.castMembers[2].voice="C voice";c.activeCastMemberId=c.castMembers[0].id;activeChat().sceneCast=[{id:"p1",castMemberId:c.castMembers[0].id,name:"Rhydian",status:"beside her"},{id:"p2",castMemberId:c.castMembers[1].id,name:"Dante",status:"at the door"}];');
+ const p=h.run('compileSystemPrompt()');
+ assert.match(p,/ACTIVE SCENE CAST[\s\S]*Rhydian[\s\S]*Dante/);
+ assert.match(p,/OFF-SCENE BOT CHARACTERS[\s\S]*Cassian/);
+ assert.match(p,/Only bot characters listed in ACTIVE SCENE CAST may speak/);
+ assert.doesNotMatch(p,/CAST MEMBER 3: Cassian/);
+});
+
 test('typed continue generates a reply despite its command marker',async t=>{
  const h=await app(t);h.run('openRouterRequest=async()=>"Continued reply";');
  await h.run('handleChatCommand("/continue")');
