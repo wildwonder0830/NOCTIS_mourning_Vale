@@ -333,17 +333,20 @@ function loadSettings(){
 let vault=loadVault();
 
 if(pendingLargeVaultLoad){
-  pendingLargeVaultLoad.then(raw=>{
-    if(!raw)return;
+  const restoringLargeVault=pendingLargeVaultLoad;
+  restoringLargeVault.then(raw=>{
+    if(!raw)throw new Error("Large-vault storage returned no saved vault.");
     const hydrated=JSON.parse(raw);
     if(!hydrated || !Array.isArray(hydrated.characters))throw new Error("Large-vault data is invalid.");
     vault=hydrated;
+    if(pendingLargeVaultLoad===restoringLargeVault)pendingLargeVaultLoad=null;
     normalizeVaultV07();
     try{renderAll()}catch{}
     try{updateConnectionStatus()}catch{}
   }).catch(err=>{
+    if(pendingLargeVaultLoad===restoringLargeVault)pendingLargeVaultLoad=null;
     console.error("[Noctis] Could not restore large vault:",err);
-    alert("Noctis could not restore the large local vault. Your smaller browser data was left untouched.");
+    alert("Noctis could not restore the large local vault. No placeholder vault was written over it.");
   });
 }
 
@@ -537,6 +540,9 @@ function renderPersonaBadge(){
 }
 
 function saveVault(){
+  // While IndexedDB hydration is still pending, vault is only the temporary
+  // default placeholder. Never persist that placeholder over the real large vault.
+  if(pendingLargeVaultLoad)return;
   vault.updatedAt=now();
   const serialized=JSON.stringify(vault);
   if(largeVaultMode){
