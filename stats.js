@@ -141,8 +141,9 @@
       const map={".sp-name":"name",".sp-species":"species",".sp-health":"health",".sp-clothing":"clothing",".sp-status":"status",".sp-notes":"notes"};
       Object.entries(map).forEach(([sel,key])=>card.querySelector(sel).addEventListener("input",e=>{
         person[key]=e.target.value;person.updatedAt=now();
-        if(person.castMemberId && typeof ensureCastMembers==="function"){
-          const member=ensureCastMembers(activeCharacter()).find(m=>m.id===person.castMemberId);
+        if(person.castMemberId){
+          const members=typeof allCastMembers==="function"?allCastMembers(activeCharacter()):(typeof ensureCastMembers==="function"?[activeCharacter(),...ensureCastMembers(activeCharacter())]:[activeCharacter()]);
+          const member=members.find(m=>m.id===person.castMemberId);
           if(member){
             if(key==="name")member.name=e.target.value;
             if(key==="species")member.species=e.target.value;
@@ -176,8 +177,8 @@
 
   function renderStats(){
     ensureStats();seedSceneCast();
-    if(typeof ensureCastMembers==="function"){
-      const members=ensureCastMembers(activeCharacter());
+    if(typeof allCastMembers==="function" || typeof ensureCastMembers==="function"){
+      const members=typeof allCastMembers==="function"?allCastMembers(activeCharacter()):[activeCharacter(),...ensureCastMembers(activeCharacter())];
       (activeChat().sceneCast||[]).forEach(person=>{
         if(person.castMemberId)return;
         const match=members.find(m=>String(m.name||"").trim().toLowerCase()===String(person.name||"").trim().toLowerCase());
