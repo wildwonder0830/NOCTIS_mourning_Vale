@@ -91,6 +91,94 @@ function ensurePersonas(v){
   return v.personas;
 }
 
+const CAST_MEMBER_STRING_FIELDS=[
+  "name","role","personality","backstory","voice","directives","permanentMemory","migrationNotes",
+  "species","height","weight","build","eyeColor","hairColor","hairStyle","skinTone",
+  "distinguishingFeatures","apparentAge","actualAge","currentForm"
+];
+
+function newCastMember(name="New Character"){
+  return {
+    id:uid(),name,role:"",personality:"",backstory:"",voice:"",
+    directives:[
+      "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
+      "Preserve established canon, scene geography, physical positions, clothing, injuries, objects, and elapsed time.",
+      "Take initiative as the character instead of waiting passively.",
+      "Do not invent prior events or personal history and present them as established facts.",
+      "Keep this character's knowledge, voice, relationship history, and physical position separate from every other cast member."
+    ].join("\n"),
+    permanentMemory:"",migrationNotes:"",relationshipDynamic:"",
+    createdAt:now(),updatedAt:now()
+  };
+}
+
+function castMemberFromLegacy(c){
+  const m=newCastMember(c?.name||"Character 1");
+  CAST_MEMBER_STRING_FIELDS.forEach(key=>{
+    if(typeof c?.[key]==="string")m[key]=c[key];
+  });
+  if(c?.profileSheet && typeof c.profileSheet==="object")m.profileSheet=clone(c.profileSheet);
+  return m;
+}
+
+function ensureCastMembers(c){
+  if(!c || typeof c!=="object")return [];
+  if(!Array.isArray(c.castMembers) || !c.castMembers.length){
+    c.castMembers=[castMemberFromLegacy(c)];
+  }
+  c.castMembers=c.castMembers.filter(x=>x&&typeof x==="object");
+  c.castMembers.forEach((m,i)=>{
+    m.id=m.id||uid();
+    m.name=typeof m.name==="string"&&m.name.trim()?m.name:`Character ${i+1}`;
+    CAST_MEMBER_STRING_FIELDS.forEach(key=>{if(typeof m[key]!=="string")m[key]=""});
+    if(typeof m.relationshipDynamic!=="string")m.relationshipDynamic="";
+    m.updatedAt=m.updatedAt||now();
+    m.createdAt=m.createdAt||m.updatedAt;
+  });
+  if(!c.castMembers.some(m=>m.id===c.activeCastMemberId))c.activeCastMemberId=c.castMembers[0]?.id||null;
+  return c.castMembers;
+}
+
+function activeCastMember(c=activeCharacter()){
+  const members=ensureCastMembers(c);
+  return members.find(m=>m.id===c.activeCastMemberId)||members[0]||null;
+}
+
+function sceneCastMembers(c=activeCharacter(),ch=activeChat()){
+  const members=ensureCastMembers(c);
+  const roster=Array.isArray(ch?.sceneCast)?ch.sceneCast:[];
+  const ids=new Set(roster.map(x=>x?.castMemberId).filter(Boolean));
+  const names=new Set(roster.map(x=>String(x?.name||"").trim().toLowerCase()).filter(Boolean));
+  const present=members.filter(m=>ids.has(m.id)||names.has(String(m.name||"").trim().toLowerCase()));
+  return present.length?present:[activeCastMember(c)].filter(Boolean);
+}
+
+function isCastMemberInScene(member,ch=activeChat()){
+  if(!member)return false;
+  const roster=Array.isArray(ch?.sceneCast)?ch.sceneCast:[];
+  return roster.some(x=>x?.castMemberId===member.id || String(x?.name||"").trim().toLowerCase()===String(member.name||"").trim().toLowerCase());
+}
+
+function setCastMemberInScene(member,present,ch=activeChat()){
+  if(!member)return;
+  if(!Array.isArray(ch.sceneCast))ch.sceneCast=[];
+  if(present){
+    const existing=ch.sceneCast.find(x=>x?.castMemberId===member.id || String(x?.name||"").trim().toLowerCase()===String(member.name||"").trim().toLowerCase());
+    if(existing){
+      existing.castMemberId=member.id;
+      existing.name=member.name||existing.name;
+      if(!existing.species)existing.species=member.species||"";
+      existing.updatedAt=now();
+    }else{
+      ch.sceneCast.push({id:uid(),castMemberId:member.id,name:member.name||"Unnamed",species:member.species||"",health:"",clothing:"",status:"",notes:"",updatedAt:now()});
+    }
+  }else{
+    ch.sceneCast=ch.sceneCast.filter(x=>x?.castMemberId!==member.id && String(x?.name||"").trim().toLowerCase()!==String(member.name||"").trim().toLowerCase());
+  }
+  ch.updatedAt=now();
+  saveVault();
+}
+
 function newCharacter(name="New Character"){
   const chat=newChat();
   return {
@@ -106,7 +194,7 @@ function newCharacter(name="New Character"){
     ].join("\n"),
     permanentMemory:"",
     lore:[{title:"Engine Rule",body:"The model is the actor. Noctis owns canon, memory, scene state, and continuity. The user's protagonist remains under the user's control."}],
-    chats:[chat],activeChatId:chat.id,createdAt:now(),updatedAt:now()
+    chats:[chat],activeChatId:chat.id,castMembers:[],activeCastMemberId:null,createdAt:now(),updatedAt:now()
   };
 }
 function defaultVault(){
@@ -262,6 +350,7 @@ if(pendingLargeVaultLoad){
 function normalizeVaultV07(){
   ensurePersonas(vault);
   (vault.characters||[]).forEach(c=>{
+    ensureCastMembers(c);
     if(!Array.isArray(c.loveInterests))c.loveInterests=[];
     c.loveInterests=c.loveInterests.filter(x=>x&&typeof x==='object').map(x=>({
       id:x.id||uid(),name:typeof x.name==='string'?x.name:'',role:typeof x.role==='string'?x.role:'',
@@ -278,6 +367,12 @@ function normalizeVaultV07(){
       ["known","unknown","recent","doNotAsk"].forEach(k=>{if(typeof ch.knowledgeLedger[k]!=="string")ch.knowledgeLedger[k]=""});
       if(!vault.personas.some(p=>p.id===ch.activePersonaId))ch.activePersonaId=vault.personas[0].id;
       if(typeof ch.castFocus!=="string")ch.castFocus="";
+      if(!Array.isArray(ch.sceneCast))ch.sceneCast=[];
+      ch.sceneCast.forEach(person=>{
+        if(!person || person.castMemberId)return;
+        const match=c.castMembers.find(m=>String(m.name||"").trim().toLowerCase()===String(person.name||"").trim().toLowerCase());
+        if(match)person.castMemberId=match.id;
+      });
     });
   });
   vault.version="0.7";
@@ -488,19 +583,21 @@ function renderLibrary(){
   });
 }
 function renderBasics(){
-  const c=activeCharacter(),ch=activeChat();
-  $("charName").value=c.name||"";$("charRole").value=c.role||"";$("charPersonality").value=c.personality||"";
-  $("charBackstory").value=c.backstory||"";$("charVoice").value=c.voice||"";$("charDirectives").value=c.directives||"";
+  const c=activeCharacter(),member=activeCastMember(c),ch=activeChat();
+  if($("storyName"))$("storyName").value=c.name||"";
+  $("charName").value=member?.name||"";$("charRole").value=member?.role||"";$("charPersonality").value=member?.personality||"";
+  $("charBackstory").value=member?.backstory||"";$("charVoice").value=member?.voice||"";$("charDirectives").value=member?.directives||"";
   $("memoryPermanent").value=c.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
   if($("knowledgeKnown"))$("knowledgeKnown").value=ch.knowledgeLedger?.known||"";
   if($("knowledgeUnknown"))$("knowledgeUnknown").value=ch.knowledgeLedger?.unknown||"";
   if($("knowledgeRecent"))$("knowledgeRecent").value=ch.knowledgeLedger?.recent||"";
   if($("knowledgeDoNotAsk"))$("knowledgeDoNotAsk").value=ch.knowledgeLedger?.doNotAsk||"";
   if($("migrationNotes"))$("migrationNotes").value=c.migrationNotes||"";
+  renderCastMemberTabs();
   renderLoveInterests();
   $("sceneLocation").value=ch.scene.location||"";$("sceneTime").value=ch.scene.time||"";
   $("sceneState").value=ch.scene.state||"";$("sceneEmotion").value=ch.scene.emotion||"";
-  $("chatCharacterName").textContent=c.name||"Noctis";$("characterEditorTitle").textContent=c.name||"Character";
+  $("chatCharacterName").textContent=c.name||"Noctis";$("characterEditorTitle").textContent=`${c.name||"Roleplay"} • ${member?.name||"Character"}`;
   $("activeChatTitle").textContent=ch.title||"Main Story";
   $("apiKey").value=settings.apiKey||"";$("modelName").value=settings.model||defaultSettings.model;
   $("temperature").value=settings.temperature??0.85;$("maxTokens").value=settings.maxTokens??900;
@@ -509,6 +606,30 @@ function renderBasics(){
   if($("autoMemory"))$("autoMemory").checked=settings.autoMemory!==false;
   updateConnectionStatus();
   updateMemoryStatus();
+}
+
+function renderCastMemberTabs(){
+  const c=activeCharacter(),host=$("castMemberTabs");
+  if(!host)return;
+  const members=ensureCastMembers(c),active=activeCastMember(c),ch=activeChat();
+  host.innerHTML="";
+  members.forEach((member,index)=>{
+    const button=document.createElement("button");
+    button.type="button";
+    button.className=`cast-member-tab${member.id===active?.id?" active":""}${isCastMemberInScene(member,ch)?" in-scene":""}`;
+    button.innerHTML=`<span>${member.name||`Character ${index+1}`}</span><small>${isCastMemberInScene(member,ch)?"IN SCENE":"OFF SCENE"}</small>`;
+    button.addEventListener("click",()=>{
+      c.activeCastMemberId=member.id;c.updatedAt=now();saveVault();renderAll();selectTab("character");
+    });
+    host.appendChild(button);
+  });
+  const sceneToggle=$("castMemberInScene");
+  if(sceneToggle){
+    sceneToggle.checked=!!active&&isCastMemberInScene(active,ch);
+    sceneToggle.disabled=!active;
+  }
+  const deleteBtn=$("deleteCastMemberBtn");
+  if(deleteBtn)deleteBtn.disabled=members.length<=1;
 }
 
 function renderLoveInterests(){
@@ -601,11 +722,38 @@ function bindBasics(){
   if($("syncImportInput"))$("syncImportInput").addEventListener("change",e=>importSyncFile(e.target.files?.[0]));
   if($("syncModal"))$("syncModal").addEventListener("click",e=>{if(e.target===$("syncModal"))closeSyncModal()});
 
+  if($("storyName"))$("storyName").addEventListener("input",e=>{
+    const c=activeCharacter();c.name=e.target.value;c.updatedAt=now();saveVault();
+    $("chatCharacterName").textContent=e.target.value||"Noctis";renderLibrary();
+  });
   const charMap={charName:"name",charRole:"role",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
   Object.entries(charMap).forEach(([id,key])=>$(id).addEventListener("input",e=>{
-    activeCharacter()[key]=e.target.value;activeCharacter().updatedAt=now();saveVault();
-    if(id==="charName"){$("chatCharacterName").textContent=e.target.value||"Noctis";$("characterEditorTitle").textContent=e.target.value||"Character";renderLibrary()}
+    const c=activeCharacter(),member=activeCastMember(c);if(!member)return;
+    member[key]=e.target.value;member.updatedAt=now();c.updatedAt=now();saveVault();
+    if(id==="charName"){
+      (activeChat().sceneCast||[]).forEach(p=>{if(p.castMemberId===member.id)p.name=e.target.value});
+      $("characterEditorTitle").textContent=`${c.name||"Roleplay"} • ${e.target.value||"Character"}`;
+      renderCastMemberTabs();
+    }
   }));
+  if($("addCastMemberBtn"))$("addCastMemberBtn").addEventListener("click",()=>{
+    const name=prompt("New character name:","New Character");if(name===null)return;
+    const c=activeCharacter(),member=newCastMember(name.trim()||"New Character");
+    ensureCastMembers(c).push(member);c.activeCastMemberId=member.id;c.updatedAt=now();saveVault();renderAll();selectTab("character");
+  });
+  if($("deleteCastMemberBtn"))$("deleteCastMemberBtn").addEventListener("click",()=>{
+    const c=activeCharacter(),members=ensureCastMembers(c),member=activeCastMember(c);
+    if(members.length<=1){alert("Each roleplay needs at least one bot character sheet.");return}
+    if(!member||!confirm(`Delete ${member.name||"this character"}'s sheet from this roleplay?`))return;
+    c.castMembers=members.filter(m=>m.id!==member.id);
+    (c.chats||[]).forEach(ch=>{if(Array.isArray(ch.sceneCast))ch.sceneCast=ch.sceneCast.filter(p=>p.castMemberId!==member.id)});
+    c.activeCastMemberId=c.castMembers[0]?.id||null;c.updatedAt=now();saveVault();renderAll();selectTab("character");
+  });
+  if($("castMemberInScene"))$("castMemberInScene").addEventListener("change",e=>{
+    const member=activeCastMember();if(!member)return;
+    setCastMemberInScene(member,e.target.checked);renderCastMemberTabs();
+    if(typeof renderStats==="function")renderStats();
+  });
   $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;activeCharacter().updatedAt=now();saveVault()});
   if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;activeCharacter().updatedAt=now();saveVault()});
   if($("addLoveInterestBtn"))$("addLoveInterestBtn").addEventListener("click",()=>{
@@ -1109,6 +1257,18 @@ function renderMessages(){
 }
 function compileSystemPrompt(){
   const c=activeCharacter(),ch=activeChat();
+  const allCast=ensureCastMembers(c);
+  const presentCast=sceneCastMembers(c,ch);
+  const offSceneCast=allCast.filter(m=>!presentCast.some(p=>p.id===m.id));
+  const castSheets=presentCast.map((m,i)=>`CAST MEMBER ${i+1}: ${m.name||"Unnamed"}
+Role / Archetype: ${m.role||"(unspecified)"}
+Personality: ${m.personality||"(unspecified)"}
+Backstory: ${m.backstory||"(unspecified)"}
+Voice & Speech: ${m.voice||"(unspecified)"}
+Relationship Dynamic: ${m.relationshipDynamic||"(unspecified)"}
+Character Directives: ${m.directives||"(none)"}
+Personal Permanent Memory: ${m.permanentMemory||"(none)"}`).join("\n\n");
+  const sceneRoster=(ch.sceneCast||[]).map(p=>`- ${p.name||"Unnamed"}${p.status?` — ${p.status}`:""}${p.clothing?` | clothing: ${p.clothing}`:""}${p.health?` | health: ${p.health}`:""}`).join("\n")||"(no explicit roster details)";
   const lore=c.lore.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
   const threads=ch.threads.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
   const loveInterests=(c.loveInterests||[]).filter(x=>x.name||x.role||x.dynamic||x.voice||x.continuity).map((x,i)=>`${i+1}. ${x.name||"Unnamed love interest"}
@@ -1123,22 +1283,23 @@ Continuity notes: ${x.continuity||"(none)"}`).join("\n\n")||"(none — this is a
     `RECENTLY CONFIRMED:\n${ledger.recent||"(none recorded)"}`,
     `DO NOT ASK FOR AS NEW:\n${ledger.doNotAsk||"(none recorded)"}`
   ].join("\n\n");
-  return `You are performing the roleplay character or cast named ${c.name || "the character"}.
+  return `You are performing the roleplay cast for ${c.name || "this roleplay"}.
 
-CHARACTER / CAST ROLE
-${c.role || "(unspecified)"}
+ACTIVE SCENE CAST — FULL BOT CHARACTER SHEETS
+${castSheets||"(none)"}
 
-PERSONALITY
-${c.personality || "(unspecified)"}
+OFF-SCENE BOT CHARACTERS
+${offSceneCast.length?offSceneCast.map(m=>"- "+(m.name||"Unnamed")).join("\n"):"(none)"}
 
-BACKSTORY
-${c.backstory || "(unspecified)"}
+CURRENT SCENE ROSTER / PHYSICAL PRESENCE
+${sceneRoster}
 
-VOICE AND SPEECH
-${c.voice || "(unspecified)"}
-
-CHARACTER-SPECIFIC RESPONSE DIRECTIVES
-${c.directives || "(none)"}
+CAST PRESENCE RULES
+- Only bot characters listed in ACTIVE SCENE CAST may speak, act, touch the protagonist, observe current events firsthand, or be physically present unless the story explicitly brings another cast member into the scene.
+- OFF-SCENE BOT CHARACTERS remain part of canon but do not suddenly appear, speak from nowhere, know current private events firsthand, or inherit another character's observations.
+- Track each cast member separately: voice, knowledge, memories, relationship status, jealousy, promises, injuries, clothing, location, and physical position are never interchangeable.
+- When a scene transition adds or removes someone, update continuity naturally; never teleport cast members without an established arrival/departure.
+- If several cast members are present, label or write dialogue clearly enough that the user can always tell who spoke or acted.
 
 ACTIVE USER PERSONA — CANON FOR THIS TIMELINE
 ${personaPrompt()}
@@ -1849,5 +2010,5 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   selectTab("chat");
 });
 
-function renderAll(){normalizeVaultV07();renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
+function renderAll(){normalizeVaultV07();ensureCastMembers(activeCharacter());renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
 bindBasics();bindPersonaFields();renderAll();saveVault();
