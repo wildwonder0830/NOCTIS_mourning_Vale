@@ -54,11 +54,32 @@
         <div class="section-title-row">
           <div>
             <h2 id="characterEditorTitle">Character</h2>
-            <p class="hint">For a paired cast such as Aedan & Aeron, use one vault entry and describe both people distinctly here.</p>
+            <p class="hint">One roleplay can contain multiple full bot character sheets. Each sheet keeps its own voice, canon, profile, physical facts, and scene presence.</p>
           </div>
-          <button id="deleteCharacterBtn" class="ghost danger small">Delete</button>
+          <button id="deleteCharacterBtn" class="ghost danger small">Delete RP</button>
         </div>
-        <label>Name / Cast Name<input id="charName" /></label>
+
+        <label>Roleplay / Story Name<input id="storyName" placeholder="Three Mates, Dante Story, Pack Arc…" /></label>
+
+        <div class="cast-sheet-manager">
+          <div class="section-title-row">
+            <div>
+              <h2 class="subhead">Bot Character Sheets</h2>
+              <p class="hint">Tap a character to edit their individual full sheet. Mark only the characters physically present in the current scene.</p>
+            </div>
+            <button id="addCastMemberBtn" class="small" type="button">+ Character</button>
+          </div>
+          <div id="castMemberTabs" class="cast-member-tabs" aria-label="Bot character sheets"></div>
+          <div class="cast-member-actions">
+            <label class="toggle-row cast-scene-toggle">
+              <input id="castMemberInScene" type="checkbox" />
+              <span>In this scene</span>
+            </label>
+            <button id="deleteCastMemberBtn" class="ghost danger small" type="button">Delete Sheet</button>
+          </div>
+        </div>
+
+        <label>Character Name<input id="charName" /></label>
         <label>Role / Archetype<input id="charRole" /></label>
         <label>Personality<textarea id="charPersonality" rows="6"></textarea></label>
         <label>Backstory<textarea id="charBackstory" rows="8"></textarea></label>
