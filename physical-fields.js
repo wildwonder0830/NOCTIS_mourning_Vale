@@ -37,7 +37,8 @@
       PERSONA_FIELDS.forEach(([,key])=>{if(typeof p[key]!=="string")p[key]=""});
     });
     (vault.characters||[]).forEach(c=>{
-      CHARACTER_FIELDS.forEach(([,key])=>{if(typeof c[key]!=="string")c[key]=""});
+      const members=typeof ensureCastMembers==="function"?ensureCastMembers(c):[c];
+      members.forEach(member=>CHARACTER_FIELDS.forEach(([,key])=>{if(typeof member[key]!=="string")member[key]=""}));
     });
   }
 
@@ -84,7 +85,7 @@
 
   function renderPhysicalFields(){
     ensurePhysicalFields();
-    const c=activeCharacter(),p=activePersona();
+    const c=typeof activeCastMember==="function"?activeCastMember():activeCharacter(),p=activePersona();
 
     CHARACTER_FIELDS.forEach(([id,key])=>{
       const el=document.getElementById(id);
@@ -103,7 +104,7 @@
       el.addEventListener("input",()=>{
         const owner=el.dataset.physicalOwner,key=el.dataset.physicalKey;
         if(owner==="character"){
-          const c=activeCharacter();c[key]=el.value;c.updatedAt=now();
+          const c=typeof activeCastMember==="function"?activeCastMember():activeCharacter();if(c){c[key]=el.value;c.updatedAt=now();}
         }else{
           const p=activePersona();p[key]=el.value;p.updatedAt=now();
         }
@@ -127,9 +128,9 @@
     const baseCompile=compileSystemPrompt;
     compileSystemPrompt=function(){
       ensurePhysicalFields();
-      const c=activeCharacter(),p=activePersona();
+      const cast=(typeof sceneCastMembers==="function"?sceneCastMembers():[(typeof activeCastMember==="function"?activeCastMember():activeCharacter())]).filter(Boolean),p=activePersona();
       const blocks=[
-        physicalBlock("CHARACTER PHYSICAL CANON — FIXED FACTS",c,CHARACTER_FIELDS),
+        ...cast.map(member=>physicalBlock(`CHARACTER PHYSICAL CANON — ${member.name||"UNNAMED"} — FIXED FACTS`,member,CHARACTER_FIELDS)),
         physicalBlock("PROTAGONIST PHYSICAL CANON — FIXED FACTS",p,PERSONA_FIELDS)
       ].filter(Boolean);
 
