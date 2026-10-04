@@ -575,9 +575,10 @@ function renderLibrary(){
     const card=document.createElement("button");card.className=`character-card${c.id===vault.activeCharacterId?" active":""}`;
     const turns=c.chats.reduce((n,ch)=>n+ch.messages.length,0);
     card.innerHTML=`<h3></h3><p></p><div class="card-meta"></div>`;
+    const cast=ensureCastMembers(c);
     card.querySelector("h3").textContent=c.name||"Untitled";
-    card.querySelector("p").textContent=c.role||"Character / cast";
-    card.querySelector(".card-meta").textContent=`${c.chats.length} chat${c.chats.length===1?"":"s"} • ${turns} saved message${turns===1?"":"s"}`;
+    card.querySelector("p").textContent=cast.map(m=>m.name||"Unnamed").join(" • ")||"Character cast";
+    card.querySelector(".card-meta").textContent=`${cast.length} bot sheet${cast.length===1?"":"s"} • ${c.chats.length} chat${c.chats.length===1?"":"s"} • ${turns} saved message${turns===1?"":"s"}`;
     card.addEventListener("click",()=>{vault.activeCharacterId=c.id;saveVault();renderAll();selectTab("chat")});
     list.appendChild(card);
   });
