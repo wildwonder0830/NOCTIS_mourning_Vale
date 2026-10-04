@@ -1358,14 +1358,19 @@ function compileSystemPrompt(){
   const allCast=allCastMembers(c);
   const presentCast=sceneCastMembers(c,ch);
   const offSceneCast=allCast.filter(m=>!presentCast.some(p=>p.id===m.id));
-  const castSheets=presentCast.map((m,i)=>`CAST MEMBER ${i+1}: ${m.name||"Unnamed"}
+  const castSheets=presentCast.map((m,i)=>{
+    const memberLore=Array.isArray(m.lore)?m.lore.filter(x=>x&&(x.title||x.body)).map(x=>`- ${x.title||"Lore"}: ${x.body||""}`).join("\n"):"";
+    return `CAST MEMBER ${i+1}: ${m.name||"Unnamed"}
 Role / Archetype: ${m.role||"(unspecified)"}
 Personality: ${m.personality||"(unspecified)"}
 Backstory: ${m.backstory||"(unspecified)"}
 Voice & Speech: ${m.voice||"(unspecified)"}
 Relationship Dynamic: ${m.relationshipDynamic||"(unspecified)"}
 Character Directives: ${m.directives||"(none)"}
-Personal Permanent Memory: ${m.permanentMemory||"(none)"}`).join("\n\n");
+Personal Permanent Memory: ${m.permanentMemory||"(none)"}
+Character-Specific Lore:
+${memberLore||"(none)"}`;
+  }).join("\n\n");
   const sceneRoster=(ch.sceneCast||[]).map(p=>`- ${p.name||"Unnamed"}${p.status?` — ${p.status}`:""}${p.clothing?` | clothing: ${p.clothing}`:""}${p.health?` | health: ${p.health}`:""}`).join("\n")||"(no explicit roster details)";
   const lore=c.lore.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
   const threads=ch.threads.filter(x=>x.title||x.body).map(x=>`- ${x.title}: ${x.body}`).join("\n")||"(none)";
