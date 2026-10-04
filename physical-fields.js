@@ -142,6 +142,10 @@ PHYSICAL CONTINUITY RULES
 - Never silently change height, eye color, hair color, species/nature, apparent age, or other fixed physical facts.
 - Preserve size and height differences accurately in scene blocking, eye level, embraces, kissing, carrying, dancing, seating, and movement.
 - If prose description conflicts with a structured field, the structured field wins unless the user explicitly changes canon.
+- SKIN TONE / COMPLEXION IS A LOCKED PHYSICAL FACT. If Skin Tone is populated, use that exact complexion and never substitute another.
+- Words such as "dark", "gothic", "witchy", "elegant", "shadowy", "black-clad", or similar aesthetic/style language NEVER describe skin color unless the Skin Tone field itself explicitly says so.
+- Never infer complexion from hair color, clothing, makeup, genre, ethnicity, supernatural archetype, lighting, mood, or the adjective "dark" used anywhere outside the Skin Tone field.
+- If Skin Tone says "Very fair" or "fair", descriptions such as dark-skinned, brown-skinned, tan, olive, dusky, bronze, caramel, or similar contradictory complexions are forbidden and non-canon.
 - Weight and current form may change only when story canon explicitly establishes a change.`;
     };
     window.__noctisPhysicalPromptPatched=true;
