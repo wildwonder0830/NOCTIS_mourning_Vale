@@ -79,14 +79,44 @@ function newPersona(slot=1,name=""){
   };
 }
 function ensurePersonas(v){
-  if(!Array.isArray(v.personas))v.personas=[];
-  while(v.personas.length<4)v.personas.push(newPersona(v.personas.length+1));
-  v.personas=v.personas.slice(0,4);
-  v.personas.forEach((p,i)=>{
-    p.id=p.id||uid(); p.slot=i+1; p.name=p.name||`Persona ${i+1}`;
+  /*
+    PERSONA SLOT SAFETY CONTRACT
+    ----------------------------
+    Persona identity is keyed by explicit slot (1..4), never by array position.
+    Existing persona objects are preserved. Duplicate/invalid-slot objects are
+    moved into the next free slot instead of being sliced away or overwritten.
+  */
+  const incoming=Array.isArray(v.personas)?v.personas.filter(p=>p&&typeof p==="object"):[];
+  const bySlot=new Map();
+  const overflow=[];
+  incoming.forEach(p=>{
+    const slot=Number(p.slot);
+    if(Number.isInteger(slot)&&slot>=1&&slot<=4&&!bySlot.has(slot))bySlot.set(slot,p);
+    else overflow.push(p);
+  });
+  for(let slot=1;slot<=4;slot++){
+    if(bySlot.has(slot))continue;
+    const reuse=overflow.shift();
+    bySlot.set(slot,reuse||newPersona(slot));
+  }
+  /*
+    Preserve any unexpected extras outside the four UI slots in a quarantine
+    array so normalization never silently destroys user-authored persona data.
+  */
+  if(overflow.length){
+    v.personaOverflow=Array.isArray(v.personaOverflow)?v.personaOverflow:[];
+    const known=new Set(v.personaOverflow.map(p=>p?.id).filter(Boolean));
+    overflow.forEach(p=>{if(!p.id||!known.has(p.id))v.personaOverflow.push(p)});
+  }
+  v.personas=[1,2,3,4].map(slot=>{
+    const p=bySlot.get(slot);
+    p.id=p.id||uid();
+    p.slot=slot;
+    p.name=p.name||`Persona ${slot}`;
     ["age","pronouns","species","occupation","relationshipStyle","appearance","personality","powers","canon","preferences"]
       .forEach(k=>{if(typeof p[k]!=="string")p[k]=""});
     p.updatedAt=p.updatedAt||now();
+    return p;
   });
   return v.personas;
 }
