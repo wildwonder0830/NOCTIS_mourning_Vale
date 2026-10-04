@@ -183,8 +183,7 @@ function sceneCastMembers(c=activeCharacter(),ch=activeChat()){
     Legacy timelines may not have a linked scene roster yet. Fall back to the
     primary bot only when there are no explicit linked bot sheets.
   */
-  const hasLinkedBot=roster.some(x=>x?.castMemberId);
-  return hasLinkedBot?[]:[c].filter(Boolean);
+  return roster.length?[]:[c].filter(Boolean);
 }
 
 function isCastMemberInScene(member,ch=activeChat()){
