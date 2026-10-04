@@ -389,12 +389,106 @@ ${transcript(newMsgs)}`;
     return s;
   }
 
+  function sanitizeRepetitiveCadence(text){
+    const source=String(text||"");
+    if(!source.trim())return source;
+
+    const allowedOneWordPrefixes=new Set(["for","the","his","her","their","my","your","our"]);
+
+    const parseUnit=unit=>{
+      let raw=String(unit||"").trim();
+      let open="",close="";
+      if(/^[“"]/.test(raw)){open=raw[0];raw=raw.slice(1).trimStart();}
+      if(/[”"]$/.test(raw)){close=raw.slice(-1);raw=raw.slice(0,-1).trimEnd();}
+      const punct=(raw.match(/[.!?]+$/)||["."])[0];
+      if(/[.!?]+$/.test(raw))raw=raw.slice(0,-punct.length).trimEnd();
+      return {open,close,punct,core:raw.trim()};
+    };
+
+    const words=core=>String(core||"").trim().split(/\s+/).filter(Boolean);
+    const normWord=w=>String(w||"").toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9'’-]+$/gi,"");
+    const prefixKey=(core,n)=>words(core).slice(0,n).map(normWord).join(" ");
+    const remainder=(core,n)=>words(core).slice(n).join(" ").trim();
+
+    const naturalList=items=>{
+      const clean=items.map(x=>String(x||"").trim()).filter(Boolean);
+      if(clean.length<=1)return clean[0]||"";
+      if(clean.length===2)return `${clean[0]} and ${clean[1]}`;
+      return `${clean.slice(0,-1).join(", ")}, and ${clean.at(-1)}`;
+    };
+
+    const mergeRun=(units,start,end,prefixWords)=>{
+      const parsed=units.slice(start,end).map(parseUnit);
+      const first=parsed[0],last=parsed.at(-1);
+      const key=prefixKey(first.core,prefixWords);
+      let body="";
+
+      if(prefixWords===1 && key==="the"){
+        const items=parsed.map((p,i)=>{
+          const c=p.core;
+          if(i===0)return c;
+          return c ? c[0].toLowerCase()+c.slice(1) : c;
+        });
+        body=naturalList(items);
+      }else{
+        const firstWords=words(first.core).slice(0,prefixWords).join(" ");
+        const items=parsed.map(p=>remainder(p.core,prefixWords));
+        body=`${firstWords} ${naturalList(items)}`.trim();
+      }
+
+      return `${first.open||""}${body}${last.punct||"."}${last.close||""}`;
+    };
+
+    const cleanParagraph=paragraph=>{
+      const units=(String(paragraph||"").match(/[^.!?]+[.!?]+(?:[”"])?|[^.!?]+$/g)||[paragraph])
+        .map(x=>x.trim()).filter(Boolean);
+      if(units.length<3)return paragraph;
+
+      const out=[];
+      for(let i=0;i<units.length;){
+        let merged=false;
+
+        for(const n of [3,2,1]){
+          const first=parseUnit(units[i]);
+          const fw=words(first.core);
+          if(fw.length<n)continue;
+          const key=prefixKey(first.core,n);
+          if(!key)continue;
+          if(n===1 && !allowedOneWordPrefixes.has(key))continue;
+
+          let j=i+1;
+          while(j<units.length){
+            const p=parseUnit(units[j]);
+            if(words(p.core).length<n || prefixKey(p.core,n)!==key)break;
+            if(words(p.core).length>18)break;
+            j++;
+          }
+
+          if(j-i>=3){
+            out.push(mergeRun(units,i,j,n));
+            i=j;
+            merged=true;
+            break;
+          }
+        }
+
+        if(!merged){out.push(units[i]);i++;}
+      }
+
+      return out.join(" ");
+    };
+
+    return source.split(/(\n{2,})/).map((part,i)=>i%2?part:cleanParagraph(part)).join("");
+  }
+
+  window.NoctisCadenceSanitizer={clean:sanitizeRepetitiveCadence};
+
   function cleanExistingAssistantPosts(){
     const ch=activeChat();
     let changed=false;
     (ch.messages||[]).forEach(msg=>{
       if(msg?.role!=="assistant" || typeof msg.text!=="string") return;
-      const cleaned=sanitizeForbiddenShifterAnatomy(window.NoctisStoryPresentation?msg.text:stripMessySingleStars(msg.text));
+      const cleaned=sanitizeRepetitiveCadence(sanitizeForbiddenShifterAnatomy(window.NoctisStoryPresentation?msg.text:stripMessySingleStars(msg.text)));
       if(cleaned!==msg.text){
         msg.text=cleaned;
         msg.cleanedFormatting=true;
@@ -511,7 +605,7 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
     try{
       const raw=await baseOpenRouterForFormat(messages,maxTokens,temperature);
       setComposerState("replying","Replying…");
-      const out=isMain?sanitizeForbiddenShifterAnatomy(stripMessySingleStars(raw)):raw;
+      const out=isMain?sanitizeRepetitiveCadence(sanitizeForbiddenShifterAnatomy(stripMessySingleStars(raw))):raw;
       setTimeout(()=>setComposerState("waiting","Waiting"),260);
       return out;
     }catch(err){
