@@ -254,20 +254,52 @@
     ensurePersonas(vault);
     const requested=Number(parsed?.targetSlot??parsed?.slot??src?.targetSlot??src?.slot);
     const p=Number.isInteger(requested)&&requested>=1&&requested<=4
-      ?(vault.personas.find(x=>Number(x.slot)===requested)||vault.personas[requested-1])
+      ?vault.personas.find(x=>Number(x.slot)===requested)
       :activePersona();
     if(!p)throw new Error("Could not resolve a persona slot.");
+
+    const targetSlot=Number(p.slot);
+    const before=copy(vault.personas);
     const protectedKeys=new Set(["id","slot"]);
-    Object.entries(src).forEach(([k,v])=>{
-      if(protectedKeys.has(k))return;
-      if(k==="profileSheet" && v && typeof v==="object")p.profileSheet=copy(v);
-      else if(typeof v==="string" || typeof v==="number" || typeof v==="boolean" || v===null)p[k]=v;
-    });
-    p.updatedAt=now();
-    activeChat().activePersonaId=p.id;
-    saveVault();renderAll();
-    alert(`Imported ${p.name||"persona"} into Persona Slot ${p.slot}, including detailed profile fields.`);
-    return p;
+    try{
+      Object.entries(src).forEach(([k,v])=>{
+        if(protectedKeys.has(k))return;
+        if(k==="profileSheet" && v && typeof v==="object")p.profileSheet=copy(v);
+        else if(typeof v==="string" || typeof v==="number" || typeof v==="boolean" || v===null)p[k]=v;
+      });
+      p.updatedAt=now();
+
+      /*
+        Persona imports are single-slot transactions. Re-run normalization, then
+        verify every non-target slot retained the same persona ID. If not,
+        restore those untouched slots from the pre-import snapshot.
+      */
+      ensurePersonas(vault);
+      const beforeBySlot=new Map(before.map(x=>[Number(x.slot),x]));
+      for(const slot of [1,2,3,4]){
+        if(slot===targetSlot)continue;
+        const oldPersona=beforeBySlot.get(slot);
+        const current=vault.personas.find(x=>Number(x.slot)===slot);
+        if(oldPersona && (!current || current.id!==oldPersona.id)){
+          const index=vault.personas.findIndex(x=>Number(x.slot)===slot);
+          const restored=copy(oldPersona);
+          restored.slot=slot;
+          if(index>=0)vault.personas[index]=restored;
+          else vault.personas.push(restored);
+        }
+      }
+      ensurePersonas(vault);
+      const imported=vault.personas.find(x=>Number(x.slot)===targetSlot);
+      activeChat().activePersonaId=imported.id;
+      saveVault();renderAll();
+      alert(`Imported ${imported.name||"persona"} into Persona Slot ${imported.slot}, including detailed profile fields. Other persona slots were preserved.`);
+      return imported;
+    }catch(err){
+      vault.personas=before;
+      ensurePersonas(vault);
+      saveVault();renderAll();
+      throw err;
+    }
   }
 
   function patchPersonaImporter(){
