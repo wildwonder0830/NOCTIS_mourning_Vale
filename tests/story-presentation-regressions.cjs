@@ -1,5 +1,17 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {boot}=require('./app-harness.cjs');
+test('local cadence sanitizer collapses repeated Alpha and For ladders without API calls',async t=>{
+ const h=await boot();t.after(()=>h.close());
+ const clean=h.w.NoctisCadenceSanitizer.clean;
+ const alpha=clean('"Alpha\'s got forever. Alpha\'s got the bedroom. Alpha\'s got the city. Alpha\'s got the club. Alpha\'s got you."');
+ assert.equal(alpha,'"Alpha\'s got forever, the bedroom, the city, the club, and you."');
+ const forRun=clean('For the steam. For the water. For the hand on the lower belly. For the possibility. For the prayer.');
+ assert.equal(forRun,'For the steam, the water, the hand on the lower belly, the possibility, and the prayer.');
+ const titles=clean('A pause. The wolf. The don. The ghost. All of them waiting.');
+ assert.equal(titles,'A pause. The wolf, the don, and the ghost. All of them waiting.');
+ assert.equal(h.requests.length,0);
+});
+
 test('dialogue, actions and texts render safely without rewriting stored messages',async t=>{
  const h=await boot();t.after(()=>h.close());
  const source='**He opens the door.** “Welcome home.” *He smiles.* "Tea?" [[PHONE:Alex]]See you soon.[[/PHONE]] <img src=x onerror=alert(1)>';
