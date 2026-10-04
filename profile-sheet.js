@@ -203,7 +203,10 @@
       return baseText+
         profilePrompt(activeCharacter(),"CHARACTER",3000,baseText)+
         profilePrompt(activePersona(),"PROTAGONIST / PERSONA",3000,baseText)+
-        `\n\nPROFILE AUTHORITY RULES\n- Treat populated detailed profile fields as canon unless the current timeline explicitly establishes a change.\n- Blank profile fields mean unspecified, not permission to invent permanent facts.\n- More specific structured fields override vague prose when they conflict.`;
+        `\n\nPROFILE AUTHORITY RULES\n- Treat populated detailed profile fields as canon unless the current timeline explicitly establishes a change.\n- Blank profile fields mean unspecified, not permission to invent permanent facts.\n- More specific structured fields override vague prose when they conflict.
+- Skin tone / color is literal physical canon. If populated, it overrides any vague appearance/style adjective.
+- "Dark", "gothic", "witchy", "black", "shadowy", "elegant", or similar words in clothing/style/aesthetic fields describe STYLE ONLY and must never be converted into complexion.
+- Never infer race, ethnicity, or complexion from names, genre, aesthetic, clothing, hair, supernatural type, or prior assistant prose.`;
     };
   }
 
