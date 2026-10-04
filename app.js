@@ -671,7 +671,7 @@ function renderLibrary(){
 function renderBasics(){
   const c=activeCharacter(),member=activeCastMember(c),ch=activeChat();
   if($("storyName"))$("storyName").value=c.storyName||c.name||"";
-  $("charName").value=member?.name||"";$("charRole").value=member?.role||"";$("charPersonality").value=member?.personality||"";
+  $("charName").value=member?.name||"";$("charRole").value=member?.role||"";if($("charRelationshipDynamic"))$("charRelationshipDynamic").value=member?.relationshipDynamic||"";$("charPersonality").value=member?.personality||"";
   $("charBackstory").value=member?.backstory||"";$("charVoice").value=member?.voice||"";$("charDirectives").value=member?.directives||"";
   $("memoryPermanent").value=member?.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
   if($("knowledgeKnown"))$("knowledgeKnown").value=ch.knowledgeLedger?.known||"";
@@ -812,7 +812,7 @@ function bindBasics(){
     const c=activeCharacter();c.storyName=e.target.value;c.updatedAt=now();saveVault();
     $("chatCharacterName").textContent=e.target.value||c.name||"Noctis";renderLibrary();
   });
-  const charMap={charName:"name",charRole:"role",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
+  const charMap={charName:"name",charRole:"role",charRelationshipDynamic:"relationshipDynamic",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
   Object.entries(charMap).forEach(([id,key])=>$(id).addEventListener("input",e=>{
     const c=activeCharacter(),member=activeCastMember(c);if(!member)return;
     member[key]=e.target.value;member.updatedAt=now();c.updatedAt=now();saveVault();
