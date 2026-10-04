@@ -828,6 +828,18 @@ function bindBasics(){
     const c=activeCharacter(),member=newCastMember(name.trim()||"New Character");
     ensureCastMembers(c).push(member);c.activeCastMemberId=member.id;c.updatedAt=now();saveVault();renderAll();selectTab("character");
   });
+  if($("importBotSheetBtn"))$("importBotSheetBtn").addEventListener("click",()=>$("importBotSheetInput")?.click());
+  if($("importBotSheetInput"))$("importBotSheetInput").addEventListener("change",async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const parsed=JSON.parse(await file.text());
+      addImportedCastSheet(parsed,file.name);
+    }catch(err){
+      alert(`Bot sheet import failed: ${err?.message||String(err)}`);
+    }finally{
+      e.target.value="";
+    }
+  });
   if($("deleteCastMemberBtn"))$("deleteCastMemberBtn").addEventListener("click",()=>{
     const c=activeCharacter(),member=activeCastMember(c);
     if(!member||member===c){alert("The Primary Bot Sheet is the original RP character and cannot be deleted. Extra bot sheets can be removed safely.");return}
