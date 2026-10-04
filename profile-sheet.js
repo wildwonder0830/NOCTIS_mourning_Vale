@@ -116,9 +116,19 @@
 
     PROFILE_SECTIONS.forEach((section,i)=>host.appendChild(sectionNode(kind,section,i)));
 
-    const firstAnchor=[...view.children].find(el=>el.tagName==="LABEL") || null;
-    if(firstAnchor)view.insertBefore(host,firstAnchor);
-    else view.appendChild(host);
+    if(kind==="character"){
+      const castManager=view.querySelector(".cast-sheet-manager");
+      if(castManager)castManager.insertAdjacentElement("afterend",host);
+      else{
+        const firstAnchor=[...view.children].find(el=>el.tagName==="LABEL") || null;
+        if(firstAnchor)view.insertBefore(host,firstAnchor);
+        else view.appendChild(host);
+      }
+    }else{
+      const firstAnchor=[...view.children].find(el=>el.tagName==="LABEL") || null;
+      if(firstAnchor)view.insertBefore(host,firstAnchor);
+      else view.appendChild(host);
+    }
 
     /* This sheet supersedes the older small Physical Canon card visually.
        physical-fields.js remains loaded because its prompt/export compatibility
