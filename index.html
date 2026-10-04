@@ -67,7 +67,11 @@
               <h2 class="subhead">Bot Character Sheets</h2>
               <p class="hint">Tap a character to edit their individual full sheet. Mark only the characters physically present in the current scene.</p>
             </div>
-            <button id="addCastMemberBtn" class="small" type="button">+ Character</button>
+            <div class="cast-import-actions">
+              <button id="importBotSheetBtn" class="ghost small" type="button">Import Bot Sheet</button>
+              <input id="importBotSheetInput" type="file" accept="application/json,.json,.noctis" hidden />
+              <button id="addCastMemberBtn" class="small" type="button">+ Blank Sheet</button>
+            </div>
           </div>
           <div id="castMemberTabs" class="cast-member-tabs" aria-label="Bot character sheets"></div>
           <div class="cast-member-actions">
