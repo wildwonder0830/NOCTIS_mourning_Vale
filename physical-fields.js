@@ -37,7 +37,7 @@
       PERSONA_FIELDS.forEach(([,key])=>{if(typeof p[key]!=="string")p[key]=""});
     });
     (vault.characters||[]).forEach(c=>{
-      const members=typeof ensureCastMembers==="function"?ensureCastMembers(c):[c];
+      const members=typeof allCastMembers==="function"?allCastMembers(c):(typeof ensureCastMembers==="function"?[c,...ensureCastMembers(c)]:[c]);
       members.forEach(member=>CHARACTER_FIELDS.forEach(([,key])=>{if(typeof member[key]!=="string")member[key]=""}));
     });
   }
