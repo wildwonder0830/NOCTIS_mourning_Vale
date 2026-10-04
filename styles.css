@@ -239,3 +239,6 @@ body.chrome-hidden .tabs{top:0}
 .cast-scene-toggle input{width:auto;margin:0}
 .cast-scene-toggle span{font-weight:800}
 @media(max-width:620px){.cast-member-tab{min-width:116px}.cast-member-actions{align-items:flex-end}.cast-sheet-manager{padding:12px}}
+
+
+.cast-import-actions{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}.cast-import-actions button{white-space:nowrap}@media(max-width:640px){.cast-import-actions{width:100%}.cast-import-actions button{flex:1 1 auto}}
