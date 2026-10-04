@@ -253,7 +253,7 @@
     if(!src || typeof src!=="object" || !src.name)throw new Error("That file is not a Noctis persona.");
     ensurePersonas(vault);
     const requested=Number(parsed?.targetSlot??parsed?.slot??src?.targetSlot??src?.slot);
-    const p=Number.isInteger(requested)&&requested>=1&&requested<=4
+    const p=Number.isInteger(requested)&&requested>=1&&requested<=6
       ?vault.personas.find(x=>Number(x.slot)===requested)
       :activePersona();
     if(!p)throw new Error("Could not resolve a persona slot.");
@@ -276,7 +276,7 @@
       */
       ensurePersonas(vault);
       const beforeBySlot=new Map(before.map(x=>[Number(x.slot),x]));
-      for(const slot of [1,2,3,4]){
+      for(const slot of [1,2,3,4,5,6]){
         if(slot===targetSlot)continue;
         const oldPersona=beforeBySlot.get(slot);
         const current=vault.personas.find(x=>Number(x.slot)===slot);
