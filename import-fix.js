@@ -188,6 +188,19 @@
     if(permanentMemory){c.permanentMemory=permanentMemory;imported.push("canon/continuity")}
     if(migrationNotes){c.migrationNotes=migrationNotes;imported.push("notes/tags")}
 
+    if(Array.isArray(src.loveInterests) && src.loveInterests.length){
+      c.loveInterests=src.loveInterests.filter(x=>x&&typeof x==="object").map(x=>({
+        id:x.id||uid(),
+        name:str(x.name),
+        role:str(x.role),
+        dynamic:str(x.dynamic),
+        voice:str(x.voice),
+        continuity:str(x.continuity),
+        updatedAt:x.updatedAt||now()
+      }));
+      imported.push(`${c.loveInterests.length} love-interest / cast sheet${c.loveInterests.length===1?"":"s"}`);
+    }
+
     const scenario=uniqueText([
       pick(src,["scenario","scene","scene_state","first_scene","first scene","opening_scene","opening scene"]),
       pick(src,["context","setting"])
