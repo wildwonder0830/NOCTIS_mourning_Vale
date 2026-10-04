@@ -99,7 +99,7 @@ const CAST_MEMBER_STRING_FIELDS=[
 
 function newCastMember(name="New Character"){
   return {
-    id:uid(),name,storyName:"",role:"",personality:"",backstory:"",voice:"",
+    id:uid(),name,role:"",personality:"",backstory:"",voice:"",
     directives:[
       "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
       "Preserve established canon, scene geography, physical positions, clothing, injuries, objects, and elapsed time.",
@@ -262,7 +262,7 @@ window.NoctisCastSheets={addImportedCastSheet,castSheetFromImportedCharacter,all
 function newCharacter(name="New Character"){
   const chat=newChat();
   return {
-    id:uid(),name,role:"",personality:"",backstory:"",voice:"",
+    id:uid(),name,storyName:"",role:"",personality:"",backstory:"",voice:"",
     migrationNotes:"",loveInterests:[],
     directives:[
       "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
