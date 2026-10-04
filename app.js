@@ -99,7 +99,7 @@ const CAST_MEMBER_STRING_FIELDS=[
 
 function newCastMember(name="New Character"){
   return {
-    id:uid(),name,role:"",personality:"",backstory:"",voice:"",
+    id:uid(),name,storyName:"",role:"",personality:"",backstory:"",voice:"",
     directives:[
       "Never narrate the user's thoughts, dialogue, decisions, emotions, bodily reactions, or voluntary actions.",
       "Preserve established canon, scene geography, physical positions, clothing, injuries, objects, and elapsed time.",
@@ -121,36 +121,70 @@ function castMemberFromLegacy(c){
   return m;
 }
 
+function sameLegacyCastCore(c,m){
+  if(!c||!m)return false;
+  const keys=["name","role","personality","backstory","voice","directives","permanentMemory","migrationNotes"];
+  return keys.every(key=>String(c?.[key]||"")===String(m?.[key]||""));
+}
+
+/*
+  CAST SAFETY CONTRACT
+  --------------------
+  The existing RP character object (c) is ALWAYS the primary bot sheet.
+  Extra sheets are additive only. We never migrate, replace, or delete the
+  original character fields just to enable a multi-bot RP.
+
+  v0.17.14 briefly auto-cloned the primary character into castMembers.
+  If that untouched mirror is encountered, preserve it in storage but mark it
+  hidden so no user data is destroyed and it cannot appear as a duplicate.
+*/
 function ensureCastMembers(c){
   if(!c || typeof c!=="object")return [];
-  if(!Array.isArray(c.castMembers) || !c.castMembers.length){
-    c.castMembers=[castMemberFromLegacy(c)];
-  }
+  if(!Array.isArray(c.castMembers))c.castMembers=[];
   c.castMembers=c.castMembers.filter(x=>x&&typeof x==="object");
   c.castMembers.forEach((m,i)=>{
     m.id=m.id||uid();
-    m.name=typeof m.name==="string"&&m.name.trim()?m.name:`Character ${i+1}`;
+    m.name=typeof m.name==="string"&&m.name.trim()?m.name:`Character ${i+2}`;
     CAST_MEMBER_STRING_FIELDS.forEach(key=>{if(typeof m[key]!=="string")m[key]=""});
     if(typeof m.relationshipDynamic!=="string")m.relationshipDynamic="";
     m.updatedAt=m.updatedAt||now();
     m.createdAt=m.createdAt||m.updatedAt;
   });
-  if(!c.castMembers.some(m=>m.id===c.activeCastMemberId))c.activeCastMemberId=c.castMembers[0]?.id||null;
+  const first=c.castMembers[0];
+  if(first && first.legacyPrimaryMirror!==false && sameLegacyCastCore(c,first)){
+    first.legacyPrimaryMirror=true;
+  }
   return c.castMembers;
 }
 
+function supplementalCastMembers(c=activeCharacter()){
+  return ensureCastMembers(c).filter(m=>m.legacyPrimaryMirror!==true);
+}
+
+function allCastMembers(c=activeCharacter()){
+  if(!c)return [];
+  return [c,...supplementalCastMembers(c)];
+}
+
 function activeCastMember(c=activeCharacter()){
-  const members=ensureCastMembers(c);
-  return members.find(m=>m.id===c.activeCastMemberId)||members[0]||null;
+  if(!c)return null;
+  const extras=supplementalCastMembers(c);
+  return extras.find(m=>m.id===c.activeCastMemberId)||c;
 }
 
 function sceneCastMembers(c=activeCharacter(),ch=activeChat()){
-  const members=ensureCastMembers(c);
+  const members=allCastMembers(c);
   const roster=Array.isArray(ch?.sceneCast)?ch.sceneCast:[];
   const ids=new Set(roster.map(x=>x?.castMemberId).filter(Boolean));
   const names=new Set(roster.map(x=>String(x?.name||"").trim().toLowerCase()).filter(Boolean));
   const present=members.filter(m=>ids.has(m.id)||names.has(String(m.name||"").trim().toLowerCase()));
-  return present.length?present:[activeCastMember(c)].filter(Boolean);
+  if(present.length)return present;
+  /*
+    Legacy timelines may not have a linked scene roster yet. Fall back to the
+    primary bot only when there are no explicit linked bot sheets.
+  */
+  const hasLinkedBot=roster.some(x=>x?.castMemberId);
+  return hasLinkedBot?[]:[c].filter(Boolean);
 }
 
 function isCastMemberInScene(member,ch=activeChat()){
@@ -178,6 +212,52 @@ function setCastMemberInScene(member,present,ch=activeChat()){
   ch.updatedAt=now();
   saveVault();
 }
+
+function castSheetFromImportedCharacter(src){
+  if(!src||typeof src!=="object")throw new Error("That file does not contain a character sheet.");
+  const name=String(src.name||src.char_name||src.character_name||"Imported Character").trim()||"Imported Character";
+  const m=newCastMember(name);
+  const aliases={
+    role:["role","archetype","occupation","title"],
+    personality:["personality","personalitySummary","personality_summary","traits"],
+    backstory:["backstory","history","biography","bio","background","description"],
+    voice:["voice","speech","speech_style","voice_and_speech","dialogue_style"],
+    directives:["directives","response_directives","system_prompt","system_instructions","instructions"],
+    permanentMemory:["permanentMemory","permanent_memory","canon","continuity","continuity_notes"],
+    migrationNotes:["migrationNotes","migration_notes","notes","creator_notes"],
+    relationshipDynamic:["relationshipDynamic","relationship_dynamic","dynamic","relationship"]
+  };
+  for(const [target,keys] of Object.entries(aliases)){
+    for(const key of keys){
+      if(typeof src[key]==="string"&&src[key].trim()){m[target]=src[key].trim();break}
+    }
+  }
+  for(const key of ["species","height","weight","build","eyeColor","hairColor","hairStyle","skinTone","distinguishingFeatures","apparentAge","actualAge","currentForm"]){
+    if(typeof src[key]==="string")m[key]=src[key];
+  }
+  if(src.profileSheet&&typeof src.profileSheet==="object")m.profileSheet=clone(src.profileSheet);
+  if(Array.isArray(src.lore))m.lore=clone(src.lore);
+  m.importSourceName=String(src.name||name);
+  m.updatedAt=now();
+  return m;
+}
+
+function addImportedCastSheet(parsed,fileName="character.json"){
+  const src=parsed?.format==="noctis-character"&&parsed?.character?parsed.character:
+    (parsed?.character&&typeof parsed.character==="object"&&!Array.isArray(parsed.characters)?parsed.character:parsed);
+  const c=activeCharacter();
+  const member=castSheetFromImportedCharacter(src);
+  ensureCastMembers(c).push(member);
+  c.activeCastMemberId=member.id;
+  c.updatedAt=now();
+  saveVault();
+  renderAll();
+  selectTab("character");
+  alert(`${member.name} was added as a new bot sheet to ${c.storyName||c.name||"this roleplay"}.\n\nNo chats, personas, or existing character data were replaced.`);
+  return member;
+}
+
+window.NoctisCastSheets={addImportedCastSheet,castSheetFromImportedCharacter,allCastMembers,supplementalCastMembers};
 
 function newCharacter(name="New Character"){
   const chat=newChat();
@@ -373,7 +453,7 @@ function normalizeVaultV07(){
       if(!Array.isArray(ch.sceneCast))ch.sceneCast=[];
       ch.sceneCast.forEach(person=>{
         if(!person || person.castMemberId)return;
-        const match=c.castMembers.find(m=>String(m.name||"").trim().toLowerCase()===String(person.name||"").trim().toLowerCase());
+        const match=allCastMembers(c).find(m=>String(m.name||"").trim().toLowerCase()===String(person.name||"").trim().toLowerCase());
         if(match)person.castMemberId=match.id;
       });
     });
@@ -581,8 +661,8 @@ function renderLibrary(){
     const card=document.createElement("button");card.className=`character-card${c.id===vault.activeCharacterId?" active":""}`;
     const turns=c.chats.reduce((n,ch)=>n+ch.messages.length,0);
     card.innerHTML=`<h3></h3><p></p><div class="card-meta"></div>`;
-    const cast=ensureCastMembers(c);
-    card.querySelector("h3").textContent=c.name||"Untitled";
+    const cast=allCastMembers(c);
+    card.querySelector("h3").textContent=c.storyName||c.name||"Untitled";
     card.querySelector("p").textContent=cast.map(m=>m.name||"Unnamed").join(" • ")||"Character cast";
     card.querySelector(".card-meta").textContent=`${cast.length} bot sheet${cast.length===1?"":"s"} • ${c.chats.length} chat${c.chats.length===1?"":"s"} • ${turns} saved message${turns===1?"":"s"}`;
     card.addEventListener("click",()=>{vault.activeCharacterId=c.id;saveVault();renderAll();selectTab("chat")});
@@ -591,20 +671,20 @@ function renderLibrary(){
 }
 function renderBasics(){
   const c=activeCharacter(),member=activeCastMember(c),ch=activeChat();
-  if($("storyName"))$("storyName").value=c.name||"";
+  if($("storyName"))$("storyName").value=c.storyName||c.name||"";
   $("charName").value=member?.name||"";$("charRole").value=member?.role||"";$("charPersonality").value=member?.personality||"";
   $("charBackstory").value=member?.backstory||"";$("charVoice").value=member?.voice||"";$("charDirectives").value=member?.directives||"";
-  $("memoryPermanent").value=c.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
+  $("memoryPermanent").value=member?.permanentMemory||"";$("memoryRelationship").value=ch.relationshipMemory||"";
   if($("knowledgeKnown"))$("knowledgeKnown").value=ch.knowledgeLedger?.known||"";
   if($("knowledgeUnknown"))$("knowledgeUnknown").value=ch.knowledgeLedger?.unknown||"";
   if($("knowledgeRecent"))$("knowledgeRecent").value=ch.knowledgeLedger?.recent||"";
   if($("knowledgeDoNotAsk"))$("knowledgeDoNotAsk").value=ch.knowledgeLedger?.doNotAsk||"";
-  if($("migrationNotes"))$("migrationNotes").value=c.migrationNotes||"";
+  if($("migrationNotes"))$("migrationNotes").value=member?.migrationNotes||"";
   renderCastMemberTabs();
   renderLoveInterests();
   $("sceneLocation").value=ch.scene.location||"";$("sceneTime").value=ch.scene.time||"";
   $("sceneState").value=ch.scene.state||"";$("sceneEmotion").value=ch.scene.emotion||"";
-  $("chatCharacterName").textContent=c.name||"Noctis";$("characterEditorTitle").textContent=`${c.name||"Roleplay"} • ${member?.name||"Character"}`;
+  $("chatCharacterName").textContent=c.storyName||c.name||"Noctis";$("characterEditorTitle").textContent=`${c.storyName||c.name||"Roleplay"} • ${member?.name||"Character"}`;
   $("activeChatTitle").textContent=ch.title||"Main Story";
   $("apiKey").value=settings.apiKey||"";$("modelName").value=settings.model||defaultSettings.model;
   $("temperature").value=settings.temperature??0.85;$("maxTokens").value=settings.maxTokens??900;
@@ -618,7 +698,7 @@ function renderBasics(){
 function renderCastMemberTabs(){
   const c=activeCharacter(),host=$("castMemberTabs");
   if(!host)return;
-  const members=ensureCastMembers(c),active=activeCastMember(c),ch=activeChat();
+  const members=allCastMembers(c),active=activeCastMember(c),ch=activeChat();
   host.innerHTML="";
   members.forEach((member,index)=>{
     const button=document.createElement("button");
@@ -636,7 +716,7 @@ function renderCastMemberTabs(){
     sceneToggle.disabled=!active;
   }
   const deleteBtn=$("deleteCastMemberBtn");
-  if(deleteBtn)deleteBtn.disabled=members.length<=1;
+  if(deleteBtn)deleteBtn.disabled=!active || active===c;
 }
 
 function renderLoveInterests(){
@@ -730,8 +810,8 @@ function bindBasics(){
   if($("syncModal"))$("syncModal").addEventListener("click",e=>{if(e.target===$("syncModal"))closeSyncModal()});
 
   if($("storyName"))$("storyName").addEventListener("input",e=>{
-    const c=activeCharacter();c.name=e.target.value;c.updatedAt=now();saveVault();
-    $("chatCharacterName").textContent=e.target.value||"Noctis";renderLibrary();
+    const c=activeCharacter();c.storyName=e.target.value;c.updatedAt=now();saveVault();
+    $("chatCharacterName").textContent=e.target.value||c.name||"Noctis";renderLibrary();
   });
   const charMap={charName:"name",charRole:"role",charPersonality:"personality",charBackstory:"backstory",charVoice:"voice",charDirectives:"directives"};
   Object.entries(charMap).forEach(([id,key])=>$(id).addEventListener("input",e=>{
@@ -739,7 +819,7 @@ function bindBasics(){
     member[key]=e.target.value;member.updatedAt=now();c.updatedAt=now();saveVault();
     if(id==="charName"){
       (activeChat().sceneCast||[]).forEach(p=>{if(p.castMemberId===member.id)p.name=e.target.value});
-      $("characterEditorTitle").textContent=`${c.name||"Roleplay"} • ${e.target.value||"Character"}`;
+      $("characterEditorTitle").textContent=`${c.storyName||c.name||"Roleplay"} • ${e.target.value||"Character"}`;
       renderCastMemberTabs();
     }
   }));
@@ -749,20 +829,20 @@ function bindBasics(){
     ensureCastMembers(c).push(member);c.activeCastMemberId=member.id;c.updatedAt=now();saveVault();renderAll();selectTab("character");
   });
   if($("deleteCastMemberBtn"))$("deleteCastMemberBtn").addEventListener("click",()=>{
-    const c=activeCharacter(),members=ensureCastMembers(c),member=activeCastMember(c);
-    if(members.length<=1){alert("Each roleplay needs at least one bot character sheet.");return}
-    if(!member||!confirm(`Delete ${member.name||"this character"}'s sheet from this roleplay?`))return;
-    c.castMembers=members.filter(m=>m.id!==member.id);
+    const c=activeCharacter(),member=activeCastMember(c);
+    if(!member||member===c){alert("The Primary Bot Sheet is the original RP character and cannot be deleted. Extra bot sheets can be removed safely.");return}
+    if(!confirm(`Delete ${member.name||"this character"}'s extra bot sheet from this roleplay? The shared RP chat will not be deleted.`))return;
+    c.castMembers=ensureCastMembers(c).filter(m=>m.id!==member.id);
     (c.chats||[]).forEach(ch=>{if(Array.isArray(ch.sceneCast))ch.sceneCast=ch.sceneCast.filter(p=>p.castMemberId!==member.id)});
-    c.activeCastMemberId=c.castMembers[0]?.id||null;c.updatedAt=now();saveVault();renderAll();selectTab("character");
+    c.activeCastMemberId=null;c.updatedAt=now();saveVault();renderAll();selectTab("character");
   });
   if($("castMemberInScene"))$("castMemberInScene").addEventListener("change",e=>{
     const member=activeCastMember();if(!member)return;
     setCastMemberInScene(member,e.target.checked);renderCastMemberTabs();
     if(typeof renderStats==="function")renderStats();
   });
-  $("memoryPermanent").addEventListener("input",e=>{activeCharacter().permanentMemory=e.target.value;activeCharacter().updatedAt=now();saveVault()});
-  if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{activeCharacter().migrationNotes=e.target.value;activeCharacter().updatedAt=now();saveVault()});
+  $("memoryPermanent").addEventListener("input",e=>{const c=activeCharacter(),m=activeCastMember(c);if(!m)return;m.permanentMemory=e.target.value;m.updatedAt=now();c.updatedAt=now();saveVault()});
+  if($("migrationNotes"))$("migrationNotes").addEventListener("input",e=>{const c=activeCharacter(),m=activeCastMember(c);if(!m)return;m.migrationNotes=e.target.value;m.updatedAt=now();c.updatedAt=now();saveVault()});
   if($("addLoveInterestBtn"))$("addLoveInterestBtn").addEventListener("click",()=>{
     const c=activeCharacter();if(!Array.isArray(c.loveInterests))c.loveInterests=[];
     c.loveInterests.push({id:uid(),name:"",role:"",dynamic:"",voice:"",continuity:"",updatedAt:now()});
@@ -1264,7 +1344,7 @@ function renderMessages(){
 }
 function compileSystemPrompt(){
   const c=activeCharacter(),ch=activeChat();
-  const allCast=ensureCastMembers(c);
+  const allCast=allCastMembers(c);
   const presentCast=sceneCastMembers(c,ch);
   const offSceneCast=allCast.filter(m=>!presentCast.some(p=>p.id===m.id));
   const castSheets=presentCast.map((m,i)=>`CAST MEMBER ${i+1}: ${m.name||"Unnamed"}
@@ -1290,7 +1370,7 @@ Continuity notes: ${x.continuity||"(none)"}`).join("\n\n")||"(none — this is a
     `RECENTLY CONFIRMED:\n${ledger.recent||"(none recorded)"}`,
     `DO NOT ASK FOR AS NEW:\n${ledger.doNotAsk||"(none recorded)"}`
   ].join("\n\n");
-  return `You are performing the roleplay cast for ${c.name || "this roleplay"}.
+  return `You are performing the roleplay cast for ${c.storyName || c.name || "this roleplay"}.
 
 ACTIVE SCENE CAST — FULL BOT CHARACTER SHEETS
 ${castSheets||"(none)"}
@@ -2017,5 +2097,5 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   selectTab("chat");
 });
 
-function renderAll(){normalizeVaultV07();ensureCastMembers(activeCharacter());renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
+function renderAll(){normalizeVaultV07();renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
 bindBasics();bindPersonaFields();renderAll();saveVault();
