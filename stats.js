@@ -25,8 +25,8 @@
     vault.version="0.9";
   }
 
-  function defaultParticipant(name="",species=""){
-    return {id:uid(),name,species,health:"",clothing:"",status:"",notes:"",updatedAt:now()};
+  function defaultParticipant(name="",species="",castMemberId=""){
+    return {id:uid(),castMemberId,name,species,health:"",clothing:"",status:"",notes:"",updatedAt:now()};
   }
 
   function seedSceneCast(){
@@ -34,10 +34,10 @@
     const ch=activeChat();
     if(ch.sceneCast.length)return;
     const p=activePersona();
-    const c=activeCharacter();
-    if(p?.name) ch.sceneCast.push(defaultParticipant(p.name,p.species||""));
-    if(c?.name && !ch.sceneCast.some(x=>x.name.toLowerCase()===c.name.toLowerCase())){
-      ch.sceneCast.push(defaultParticipant(c.name,""));
+    const member=typeof activeCastMember==="function"?activeCastMember():activeCharacter();
+    if(p?.name) ch.sceneCast.push(defaultParticipant(p.name,p.species||"",""));
+    if(member?.name && !ch.sceneCast.some(x=>String(x.name||"").toLowerCase()===String(member.name||"").toLowerCase())){
+      ch.sceneCast.push(defaultParticipant(member.name,member.species||"",member.id||""));
     }
     saveVault();
   }
@@ -139,8 +139,24 @@
         <label>Scene status / position<input class="sp-status" value="${esc(person.status)}" placeholder="At table, across room, asleep, shifted…" /></label>
         <label>Notes<textarea class="sp-notes" rows="3">${esc(person.notes)}</textarea></label>`;
       const map={".sp-name":"name",".sp-species":"species",".sp-health":"health",".sp-clothing":"clothing",".sp-status":"status",".sp-notes":"notes"};
-      Object.entries(map).forEach(([sel,key])=>card.querySelector(sel).addEventListener("input",e=>{person[key]=e.target.value;person.updatedAt=now();saveVault();if(key==="name")card.querySelector("strong").textContent=e.target.value||"Unnamed";}));
-      card.querySelector(".remove").addEventListener("click",()=>{ch.sceneCast=ch.sceneCast.filter(x=>x.id!==person.id);saveVault();renderCast()});
+      Object.entries(map).forEach(([sel,key])=>card.querySelector(sel).addEventListener("input",e=>{
+        person[key]=e.target.value;person.updatedAt=now();
+        if(person.castMemberId && typeof ensureCastMembers==="function"){
+          const member=ensureCastMembers(activeCharacter()).find(m=>m.id===person.castMemberId);
+          if(member){
+            if(key==="name")member.name=e.target.value;
+            if(key==="species")member.species=e.target.value;
+            member.updatedAt=now();
+          }
+        }
+        saveVault();
+        if(key==="name")card.querySelector("strong").textContent=e.target.value||"Unnamed";
+        if(typeof renderCastMemberTabs==="function")renderCastMemberTabs();
+      }));
+      card.querySelector(".remove").addEventListener("click",()=>{
+        ch.sceneCast=ch.sceneCast.filter(x=>x.id!==person.id);saveVault();renderCast();
+        if(typeof renderCastMemberTabs==="function")renderCastMemberTabs();
+      });
       host.appendChild(card);
     });
   }
@@ -159,9 +175,20 @@
   }
 
   function renderStats(){
-    ensureStats();seedSceneCast();renderCounters();renderCast();renderBeatLog();
+    ensureStats();seedSceneCast();
+    if(typeof ensureCastMembers==="function"){
+      const members=ensureCastMembers(activeCharacter());
+      (activeChat().sceneCast||[]).forEach(person=>{
+        if(person.castMemberId)return;
+        const match=members.find(m=>String(m.name||"").trim().toLowerCase()===String(person.name||"").trim().toLowerCase());
+        if(match)person.castMemberId=match.id;
+      });
+    }
+    renderCounters();renderCast();renderBeatLog();
+    if(typeof renderCastMemberTabs==="function")renderCastMemberTabs();
     const badge=document.getElementById("buildBadge");if(badge)badge.textContent="v"+BUILD;
   }
+  window.renderStats=renderStats;
 
   function addBeat(){
     const type=prompt("Beat type:","Story beat");if(type===null)return;
