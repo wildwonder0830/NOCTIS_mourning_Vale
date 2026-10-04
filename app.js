@@ -7,6 +7,54 @@ const LEGACY_SETTINGS_KEYS=[
   "noctis-private-settings-v0.2"
 ];
 
+const LARGE_VAULT_MARKER="noctis-large-vault-idb-v1";
+const LARGE_VAULT_DB="noctis-large-vault";
+const LARGE_VAULT_STORE="state";
+let largeVaultMode=false;
+let pendingLargeVaultLoad=null;
+let largeVaultWriteQueue=Promise.resolve();
+
+function openLargeVaultDb(){
+  return new Promise((resolve,reject)=>{
+    if(typeof indexedDB==="undefined"){reject(new Error("IndexedDB is unavailable in this browser."));return}
+    const req=indexedDB.open(LARGE_VAULT_DB,1);
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(LARGE_VAULT_STORE))db.createObjectStore(LARGE_VAULT_STORE)};
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||new Error("Could not open large-vault storage."));
+  });
+}
+async function readLargeVaultFromIdb(){
+  const db=await openLargeVaultDb();
+  return await new Promise((resolve,reject)=>{
+    const tx=db.transaction(LARGE_VAULT_STORE,"readonly");
+    const req=tx.objectStore(LARGE_VAULT_STORE).get("vault");
+    req.onsuccess=()=>resolve(req.result||null);
+    req.onerror=()=>reject(req.error||new Error("Could not read the large vault."));
+    tx.oncomplete=()=>db.close();
+  });
+}
+function queueLargeVaultWrite(serialized){
+  largeVaultMode=true;
+  largeVaultWriteQueue=largeVaultWriteQueue
+    .catch(()=>{})
+    .then(async()=>{
+      const db=await openLargeVaultDb();
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction(LARGE_VAULT_STORE,"readwrite");
+        tx.objectStore(LARGE_VAULT_STORE).put(serialized,"vault");
+        tx.oncomplete=()=>resolve();
+        tx.onerror=()=>reject(tx.error||new Error("Could not save the large vault."));
+        tx.onabort=()=>reject(tx.error||new Error("Large-vault save was aborted."));
+      });
+      db.close();
+      try{
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(LARGE_VAULT_MARKER,"1");
+      }catch{}
+    });
+  return largeVaultWriteQueue;
+}
+
 const uid=()=>`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,9)}`;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const now=()=>new Date().toISOString();
@@ -116,6 +164,11 @@ function migrateLegacy(legacy){
 }
 function loadVault(){
   try{
+    if(localStorage.getItem(LARGE_VAULT_MARKER)==="1" && typeof indexedDB!=="undefined"){
+      largeVaultMode=true;
+      pendingLargeVaultLoad=readLargeVaultFromIdb();
+      return defaultVault();
+    }
     const v=localStorage.getItem(STORAGE_KEY);
     if(v)return JSON.parse(v);
     const legacy=localStorage.getItem(LEGACY_KEY);
@@ -190,6 +243,21 @@ function loadSettings(){
   return clone(defaultSettings);
 }
 let vault=loadVault();
+
+if(pendingLargeVaultLoad){
+  pendingLargeVaultLoad.then(raw=>{
+    if(!raw)return;
+    const hydrated=JSON.parse(raw);
+    if(!hydrated || !Array.isArray(hydrated.characters))throw new Error("Large-vault data is invalid.");
+    vault=hydrated;
+    normalizeVaultV07();
+    try{renderAll()}catch{}
+    try{updateConnectionStatus()}catch{}
+  }).catch(err=>{
+    console.error("[Noctis] Could not restore large vault:",err);
+    alert("Noctis could not restore the large local vault. Your smaller browser data was left untouched.");
+  });
+}
 
 function normalizeVaultV07(){
   ensurePersonas(vault);
@@ -373,7 +441,21 @@ function renderPersonaBadge(){
   const p=activePersona(); el.textContent=p?.name?`Playing as: ${p.name}`:"";
 }
 
-function saveVault(){vault.updatedAt=now();localStorage.setItem(STORAGE_KEY,JSON.stringify(vault))}
+function saveVault(){
+  vault.updatedAt=now();
+  const serialized=JSON.stringify(vault);
+  if(largeVaultMode){
+    queueLargeVaultWrite(serialized);
+    return;
+  }
+  try{
+    localStorage.setItem(STORAGE_KEY,serialized);
+  }catch(err){
+    const quota=err?.name==="QuotaExceededError" || err?.name==="NS_ERROR_DOM_QUOTA_REACHED" || /quota|storage/i.test(String(err?.message||err));
+    if(!quota)throw err;
+    queueLargeVaultWrite(serialized).catch(e=>console.error("[Noctis] Large-vault fallback failed:",e));
+  }
+}
 function saveSettings(){localStorage.setItem(SETTINGS_KEY,JSON.stringify(settings))}
 const $=id=>document.getElementById(id);
 function activeCharacter(){return vault.characters.find(c=>c.id===vault.activeCharacterId)||vault.characters[0]}
