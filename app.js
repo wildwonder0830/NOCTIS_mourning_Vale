@@ -234,8 +234,38 @@ function castSheetFromImportedCharacter(src){
   for(const key of ["species","height","weight","build","eyeColor","hairColor","hairStyle","skinTone","distinguishingFeatures","apparentAge","actualAge","currentForm"]){
     if(typeof src[key]==="string")m[key]=src[key];
   }
-  if(src.profileSheet&&typeof src.profileSheet==="object")m.profileSheet=clone(src.profileSheet);
+  if(src.profileSheet&&typeof src.profileSheet==="object"){
+    m.profileSheet=clone(src.profileSheet);
+  }else{
+    const fields={};
+    const put=(key,value)=>{if(typeof value==="string"&&value.trim())fields[key]=value.trim()};
+    put("fullName",m.name);
+    put("apparentAge",m.apparentAge);
+    put("actualAge",m.actualAge);
+    put("species",m.species);
+    put("height",m.height);
+    put("weight",m.weight);
+    put("build",m.build);
+    put("skinTone",m.skinTone);
+    put("eyeColor",m.eyeColor);
+    put("hairColor",m.hairColor);
+    put("hairStyle",m.hairStyle);
+    put("distinguishingFeatures",m.distinguishingFeatures);
+    put("currentForm",m.currentForm);
+    put("voice",m.voice);
+    put("personalitySummary",m.personality);
+    put("backstory",m.backstory);
+    put("migrationNotes",m.migrationNotes);
+    put("relationshipStyle",m.relationshipDynamic);
+    put("rpRole",m.role);
+    put("rpVoice",m.voice);
+    put("rpDirectives",m.directives);
+    put("rpPermanentMemory",m.permanentMemory);
+    m.profileSheet={version:"1.0",fields,updatedAt:now()};
+  }
   if(Array.isArray(src.lore))m.lore=clone(src.lore);
+  if(typeof src.scenario==="string"&&src.scenario.trim())m.openingScenario=src.scenario.trim();
+  if(typeof src.first_mes==="string"&&src.first_mes.trim())m.firstMessage=src.first_mes.trim();
   m.importSourceName=String(src.name||name);
   m.updatedAt=now();
   return m;
