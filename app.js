@@ -82,7 +82,7 @@ function ensurePersonas(v){
   /*
     PERSONA SLOT SAFETY CONTRACT
     ----------------------------
-    Persona identity is keyed by explicit slot (1..4), never by array position.
+    Persona identity is keyed by explicit slot (1..6), never by array position.
     Existing persona objects are preserved. Duplicate/invalid-slot objects are
     moved into the next free slot instead of being sliced away or overwritten.
   */
@@ -91,16 +91,16 @@ function ensurePersonas(v){
   const overflow=[];
   incoming.forEach(p=>{
     const slot=Number(p.slot);
-    if(Number.isInteger(slot)&&slot>=1&&slot<=4&&!bySlot.has(slot))bySlot.set(slot,p);
+    if(Number.isInteger(slot)&&slot>=1&&slot<=6&&!bySlot.has(slot))bySlot.set(slot,p);
     else overflow.push(p);
   });
-  for(let slot=1;slot<=4;slot++){
+  for(let slot=1;slot<=6;slot++){
     if(bySlot.has(slot))continue;
     const reuse=overflow.shift();
     bySlot.set(slot,reuse||newPersona(slot));
   }
   /*
-    Preserve any unexpected extras outside the four UI slots in a quarantine
+    Preserve any unexpected extras outside the six UI slots in a quarantine
     array so normalization never silently destroys user-authored persona data.
   */
   if(overflow.length){
@@ -108,7 +108,7 @@ function ensurePersonas(v){
     const known=new Set(v.personaOverflow.map(p=>p?.id).filter(Boolean));
     overflow.forEach(p=>{if(!p.id||!known.has(p.id))v.personaOverflow.push(p)});
   }
-  v.personas=[1,2,3,4].map(slot=>{
+  v.personas=[1,2,3,4,5,6].map(slot=>{
     const p=bySlot.get(slot);
     p.id=p.id||uid();
     p.slot=slot;
@@ -343,7 +343,7 @@ function defaultVault(){
   c.backstory="A temporary test character used to validate the Noctis Mourning Vale engine.";
   c.voice="Natural, immersive prose. Speaks with confidence and specificity.";
   c.chats[0].messages=[{role:"assistant",text:"Noctis Mourning Vale v0.3 initialized. Your character library and separate timelines are ready."}];
-  const personas=[1,2,3,4].map(i=>newPersona(i));
+  const personas=[1,2,3,4,5,6].map(i=>newPersona(i));
   c.chats[0].activePersonaId=personas[0].id;
   return {version:"0.7",personas,characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
@@ -387,7 +387,7 @@ function migrateLegacy(legacy){
   chat.scene={...chat.scene,...(legacy?.scene||{})};
   chat.threads=Array.isArray(legacy?.threads)?legacy.threads:[];
   chat.title="Main Story";
-  const personas=[1,2,3,4].map(i=>newPersona(i)); chat.activePersonaId=personas[0].id; return {version:"0.7",personas,characters:[c],activeCharacterId:c.id,updatedAt:now()};
+  const personas=[1,2,3,4,5,6].map(i=>newPersona(i)); chat.activePersonaId=personas[0].id; return {version:"0.7",personas,characters:[c],activeCharacterId:c.id,updatedAt:now()};
 }
 function loadVault(){
   try{
