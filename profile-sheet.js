@@ -23,7 +23,8 @@
   }
 
   function ownerFor(kind){
-    return kind==="persona"?activePersona():activeCharacter();
+    if(kind==="persona")return activePersona();
+    return typeof activeCastMember==="function" ? activeCastMember() : activeCharacter();
   }
 
   function getField(owner,def){
@@ -200,8 +201,10 @@
     const base=compileSystemPrompt;
     compileSystemPrompt=function(){
       const baseText=base();
+      const cast=(typeof sceneCastMembers==="function"?sceneCastMembers():[(typeof activeCastMember==="function"?activeCastMember():activeCharacter())]).filter(Boolean);
+      const castProfiles=cast.map(member=>profilePrompt(member,`CHARACTER: ${member.name||"Unnamed"}`,2400,baseText)).join("");
       return baseText+
-        profilePrompt(activeCharacter(),"CHARACTER",3000,baseText)+
+        castProfiles+
         profilePrompt(activePersona(),"PROTAGONIST / PERSONA",3000,baseText)+
         `\n\nPROFILE AUTHORITY RULES\n- Treat populated detailed profile fields as canon unless the current timeline explicitly establishes a change.\n- Blank profile fields mean unspecified, not permission to invent permanent facts.\n- More specific structured fields override vague prose when they conflict.
 - Skin tone / color is literal physical canon. If populated, it overrides any vague appearance/style adjective.
