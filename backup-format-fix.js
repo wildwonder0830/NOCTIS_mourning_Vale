@@ -26,9 +26,18 @@
     return `noctis-vault-backup-v${VAULT_SCHEMA}-${isoDate().slice(0,10)}.json`;
   }
 
-  function downloadCanonicalBackup() {
+  async function downloadCanonicalBackup() {
     try {
+      if (typeof pendingLargeVaultLoad!=="undefined" && pendingLargeVaultLoad) {
+        await pendingLargeVaultLoad;
+      }
+      if (typeof largeVaultWriteQueue!=="undefined" && largeVaultWriteQueue) {
+        await largeVaultWriteQueue.catch(()=>{});
+      }
       if (typeof saveVault === "function") saveVault();
+      if (typeof largeVaultWriteQueue!=="undefined" && largeVaultWriteQueue) {
+        await largeVaultWriteQueue.catch(()=>{});
+      }
       const snapshot = canonicalVaultSnapshot();
       const blob = new Blob([JSON.stringify(snapshot, null, 2)], {type:"application/json"});
       const url = URL.createObjectURL(blob);
