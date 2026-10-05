@@ -352,6 +352,8 @@ function applyNoctisSceneMarker(names,c=activeCharacter(),ch=activeChat()){
   ch.scenePresenceUpdatedAt=now();
   ch.scenePresenceNames=members.filter(m=>wanted.has(m.id)).map(m=>m.name);
   saveVault();
+  try{renderCastMemberTabs()}catch(_){}
+  try{window.dispatchEvent(new CustomEvent("noctis:scene-cast-updated",{detail:{names:ch.scenePresenceNames}}))}catch(_){}
 }
 
 window.NoctisScenePresence={
@@ -1569,8 +1571,8 @@ Continuity notes: ${x.continuity||"(none)"}`).join("\n\n")||"(none — this is a
 ACTIVE SCENE CAST — FULL BOT CHARACTER SHEETS
 ${castSheets||"(none)"}
 
-OFF-SCENE BOT CHARACTERS
-${offSceneCast.length?offSceneCast.map(m=>"- "+(m.name||"Unnamed")).join("\n"):"(none)"}
+OFF-SCENE BOT CHARACTERS — COMPACT CARDS
+${offSceneCast.length?offSceneCast.map(m=>`- ${m.name||"Unnamed"} | ${m.role||"role unspecified"} | voice: ${m.voice||"unspecified"} | relationship: ${m.relationshipDynamic||"unspecified"}`).join("\n"):"(none)"}
 
 CURRENT SCENE ROSTER / PHYSICAL PRESENCE
 ${sceneRoster}
