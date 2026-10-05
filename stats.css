@@ -17,16 +17,18 @@
 .message-body strong{font-weight:750}
 @media(max-width:680px){.story-counter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.story-counter{padding:10px}}
 
-/* v0.9.5 — keep Send beside the typing box */
+/* Current composer layout — status is a full-width readable row. */
 .app{
-  max-width:980px;
+  max-width:1180px;
 }
 
 .composer-dock .composer{
   grid-template-columns:minmax(0,1fr) 132px !important;
   grid-template-areas:
     "input send"
-    "quick quick" !important;
+    "status status"
+    "quick quick"
+    "hint hint" !important;
   column-gap:10px;
 }
 
@@ -35,44 +37,51 @@
   min-width:0;
 }
 
-.send-status-column{
+.composer-dock .composer #sendBtn{
   grid-area:send;
-  display:flex;
-  flex-direction:column;
-  align-self:stretch;
-  gap:5px;
-  min-width:0;
-}
-
-.send-status-column #sendBtn{
   width:100%;
-  min-height:42px;
-  flex:1 1 auto;
   margin:0;
 }
 
 .composer-bot-status{
+  grid-area:status;
   width:100%;
-  min-height:25px;
+  min-width:0;
+  min-height:34px;
+  box-sizing:border-box;
   display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:5px;
-  padding:4px 6px;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:8px;
+  padding:8px 10px;
   border:1px solid var(--line);
-  border-radius:999px;
+  border-radius:11px;
   color:var(--muted);
   background:rgba(255,255,255,.025);
-  font-size:10px;
-  line-height:1;
-  white-space:nowrap;
-  overflow:hidden;
+  font-size:12px;
+  line-height:1.35;
+  white-space:normal;
+  overflow:visible;
+  overflow-wrap:anywhere;
+}
+
+.composer-bot-status.error{
+  color:#ffb1bd;
+  border-color:#7f3141;
+}
+
+.bot-status-text{
+  min-width:0;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
 }
 
 .bot-status-dot{
   flex:0 0 auto;
-  width:6px;
-  height:6px;
+  width:7px;
+  height:7px;
+  margin-top:.3em;
   border-radius:50%;
   background:currentColor;
   opacity:.75;
@@ -83,7 +92,6 @@
   animation:noctisPulse 1s ease-in-out infinite;
 }
 .composer-bot-status.replying{color:var(--accent2)}
-.composer-bot-status.error{color:#d69aa7}
 
 @keyframes noctisPulse{
   0%,100%{transform:scale(.75);opacity:.4}
@@ -98,7 +106,7 @@
     column-gap:7px;
   }
   .composer-bot-status{
-    font-size:9px;
-    padding:4px;
+    font-size:11px;
+    padding:8px 9px;
   }
 }
