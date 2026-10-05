@@ -267,6 +267,19 @@ body.chrome-hidden .tabs{top:0}
 .build-badge{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid var(--line);border-radius:999px;font-size:10px;color:var(--accent2);vertical-align:1px}
 .chat-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .chat-name-row .build-badge{margin-left:0;flex:0 0 auto}
+.tabs-build-badge{
+  position:sticky;
+  right:0;
+  z-index:3;
+  flex:0 0 auto;
+  align-self:center;
+  margin-left:auto;
+  padding:5px 9px;
+  background:rgba(11,7,16,.98);
+  box-shadow:-10px 0 14px rgba(11,7,16,.95);
+  font-size:11px;
+  white-space:nowrap;
+}
 
 .knowledge-ledger-card{margin:22px 0;padding:18px;border:1px solid rgba(170,126,255,.28);border-radius:18px;background:rgba(91,54,128,.08)}
 .knowledge-ledger-card .section-title-row{margin-top:0}
