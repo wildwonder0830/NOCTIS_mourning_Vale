@@ -2106,7 +2106,9 @@ async function generateReply(extraSystem="",replaceMessage=null){
       if(index>=0)messages.splice(index,1);
     }
     const requestMeta={};
-    const normalReplyTokens=Math.max(Number(settings.maxTokens||900),1400);
+    const normalReplyTokens=replaceMessage
+      ?Number(settings.maxTokens||900)
+      :Math.max(Number(settings.maxTokens||900),1400);
     let rawReply=await openRouterRequest(
       messages,
       normalReplyTokens,
@@ -2122,7 +2124,7 @@ async function generateReply(extraSystem="",replaceMessage=null){
       Continue merely because Noctis silently hit an output ceiling.
     */
     let stitchCount=0;
-    while(requestMeta.finishReason==="length" && stitchCount<2){
+    while(!replaceMessage && requestMeta.finishReason==="length" && stitchCount<2){
       stitchCount++;
       $("connectionStatus").textContent="finishing reply…";
       const stitchMeta={};
@@ -2130,20 +2132,23 @@ async function generateReply(extraSystem="",replaceMessage=null){
         ...messages,
         {role:"assistant",content:rawReply},
         {role:"system",content:
-          "ENGINE-ONLY TRUNCATION RECOVERY: The previous assistant response was cut off only because the provider hit its output-token limit. Continue EXACTLY from the cutoff point. Do not restart, recap, repeat, or rephrase material already written. Finish the same NPC/world turn naturally and stop at the next point where the user's protagonist must respond. Preserve protagonist agency. Append the required <!--NOCTIS_SCENE: ...--> marker only when the complete turn is finished."
+          "ENGINE-ONLY TRUNCATION RECOVERY: The previous assistant response was cut off only because the provider hit its output-token limit. Continue EXACTLY from the cutoff point. Do not restart, recap, repeat, or rephrase material already written. FIRST output exactly one join marker: [[JOIN:NONE]] if the cutoff occurred inside a word and your continuation begins with the remaining letters of that same word; otherwise output [[JOIN:SPACE]]. Immediately after that marker, continue the unfinished response. Finish the same NPC/world turn naturally and stop at the next point where the user's protagonist must respond. Preserve protagonist agency. Append the required <!--NOCTIS_SCENE: ...--> marker only when the complete turn is finished."
         }
       ];
-      const tail=await openRouterRequest(
+      let tail=await openRouterRequest(
         stitchMessages,
         normalReplyTokens,
         settings.temperature,
         {meta:stitchMeta,timeoutMs:45000,maxAttempts:2,retryBaseMs:500}
       );
-      rawReply=(rawReply.trimEnd()+" "+tail.trimStart()).trim();
+      const joinMatch=tail.match(/^\[\[JOIN:(NONE|SPACE)\]\]\s*/i);
+      const joinMode=joinMatch?.[1]?.toUpperCase()||"SPACE";
+      if(joinMatch)tail=tail.slice(joinMatch[0].length);
+      rawReply=(rawReply.trimEnd()+(joinMode==="NONE"?"":" ")+tail.trimStart()).trim();
       requestMeta.finishReason=stitchMeta.finishReason;
     }
 
-    if(requestMeta.finishReason==="length"){
+    if(!replaceMessage && requestMeta.finishReason==="length"){
       throw new Error("The model response exceeded Noctis's automatic reply-completion ceiling.");
     }
 
