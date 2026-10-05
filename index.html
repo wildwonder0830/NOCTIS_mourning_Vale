@@ -131,7 +131,10 @@
       <div class="chat-shell">
         <div class="chat-header">
           <div>
-            <div id="chatCharacterName" class="chat-name">Noctis</div>
+            <div class="chat-name-row">
+              <div id="chatCharacterName" class="chat-name">Noctis</div>
+              <span id="chatBuildBadge" class="build-badge chat-build-badge">v0.17.28</span>
+            </div>
             <div id="activePersonaBadge" class="persona-badge"></div>
             <div id="activeChatTitle" class="chat-subtitle">Main Story</div>
             <div id="connectionStatus" class="status">local state ready</div>
@@ -147,6 +150,9 @@
         <div class="composer-dock">
           <form id="chatForm" class="composer">
             <textarea id="messageInput" rows="2" placeholder="Write your message..."></textarea>
+            <div id="composerBotStatus" class="composer-bot-status waiting" role="status" aria-live="polite">
+              <span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>
+            </div>
             <div class="command-hint">Commands: /ooc · /continue · /elaborate · /timeskip · /rewind · /scene · /summary · /memory · /forget · /canon · /persona · /cast · /status</div>
             <button type="submit" id="sendBtn" class="send">Send</button>
             <div class="quick-actions" aria-label="Quick roleplay actions">
