@@ -1,13 +1,13 @@
-/* Noctis Mourning Vale v0.17.29 — Build Authority + Relationship Milestone Sync Loader */
+/* Noctis Mourning Vale v0.17.30 — Build Authority + Relationship Milestone Sync Loader */
 (() => {
   'use strict';
 
-  const CURRENT_BUILD = "0.17.29";
+  const CURRENT_BUILD = "0.17.30";
   window.NOCTIS_CURRENT_BUILD = CURRENT_BUILD;
 
   function forceBuildBadge() {
     const wanted = "v" + CURRENT_BUILD;
-    ["buildBadge","chatBuildBadge"].forEach(id => {
+    ["buildBadge","chatBuildBadge","tabBuildBadge"].forEach(id => {
       const badge = document.getElementById(id);
       if (badge && badge.textContent !== wanted) badge.textContent = wanted;
     });
