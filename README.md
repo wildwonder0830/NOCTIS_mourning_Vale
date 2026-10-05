@@ -325,3 +325,5 @@ Commands render as engine chips and are not treated as protagonist dialogue.
 - Adds **Load Amanda 24 Preset** in the Persona tab.
 - The preset bypasses file import entirely and fills only the currently selected persona slot.
 - Existing characters, Jesse, chats, memories, sync data, settings, and API key are untouched.
+
+<!-- pages-redeploy-trigger: 2026-10-05 v0.17.30 -->
