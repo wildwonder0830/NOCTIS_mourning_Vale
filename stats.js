@@ -637,7 +637,11 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
       setTimeout(()=>setComposerState("waiting","Waiting"),260);
       return out;
     }catch(err){
-      setComposerState("error","Error");
+      const msg=String(err?.message||err);
+      if(/did not answer within/i.test(msg))setComposerState("error","Timed out — try again");
+      else if(/rate limit|free-models-per-day|code:\s*429|code: 429|quota|insufficient credits/i.test(msg))setComposerState("error","Model limit reached");
+      else if(/fetch|network|load failed/i.test(msg))setComposerState("error","Connection failed — try again");
+      else setComposerState("error","Request failed — try again");
       throw err;
     }
   };
@@ -684,7 +688,11 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
       else if(t.includes("continuing"))setComposerState("thinking","Continuing…");
       else if(t.includes("elaborating"))setComposerState("thinking","Elaborating…");
       else if(t.includes("thinking"))setComposerState("thinking","Thinking…");
-      else if(t.includes("hiccup")||t.includes("failed")||t.includes("error")||t.includes("limit"))setComposerState("error","Needs attention");
+      else if(t.includes("timed out"))setComposerState("error","Timed out — tap Continue again");
+      else if(t.includes("limit reached")||t.includes("daily free-model limit reached"))setComposerState("error","Model limit reached");
+      else if(t.includes("network/provider connection failed"))setComposerState("error","Connection failed — try again");
+      else if(t.includes("continue failed"))setComposerState("error","Continue failed — try again");
+      else if(t.includes("hiccup")||t.includes("failed")||t.includes("error")||t.includes("limit"))setComposerState("error","Request failed — try again");
       else if(t.includes("connected")||t.includes("ready")||t.includes("local"))setComposerState("waiting","Waiting");
     });
     obs.observe(connection,{childList:true,subtree:true,characterData:true});
