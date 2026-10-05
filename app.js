@@ -1897,7 +1897,7 @@ async function generateDirectedContinuation(mode){
       msgs,
       Math.min(Number(settings.maxTokens||900),700),
       settings.temperature,
-      {timeoutMs:20000,maxAttempts:2,retryBaseMs:450}
+      {timeoutMs:30000,maxAttempts:1,retryBaseMs:0}
     );
     ch.messages.push({id:uid(),role:"assistant",text:reply,continuationMode:mode});
     ch.updatedAt=now();
@@ -1906,7 +1906,16 @@ async function generateDirectedContinuation(mode){
     $("connectionStatus").textContent=`connected • ${settings.model}`;
     maybeAutoSaveMilestone(ch);
   }catch(err){
-    $("connectionStatus").textContent="temporary model hiccup • try again";
+    const msg=String(err?.message||err);
+    if(/did not answer within/i.test(msg)){
+      $("connectionStatus").textContent="Continue timed out • tap Continue to try again";
+    }else if(/rate limit|free-models-per-day|code:\s*429|code: 429|quota|insufficient credits/i.test(msg)){
+      $("connectionStatus").textContent="Model limit reached • Continue is unavailable right now";
+    }else if(/fetch|network|load failed/i.test(msg)){
+      $("connectionStatus").textContent="Network/provider connection failed • try Continue again";
+    }else{
+      $("connectionStatus").textContent="Continue failed • tap Continue to try again";
+    }
     console.warn("Noctis continuation error:", err);
   }finally{
     setMainGenerationBusy(false);
