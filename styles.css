@@ -80,11 +80,54 @@ textarea{resize:vertical;line-height:1.45}input:focus,textarea:focus,select:focu
   grid-template-columns:minmax(0,1fr) auto;
   grid-template-areas:
     "input send"
+    "status status"
     "quick quick";
   gap:8px 10px;
 }
 .composer-dock .composer #messageInput{grid-area:input}
 .composer-dock .composer #sendBtn{grid-area:send}
+.composer-dock .composer .composer-bot-status{
+  grid-area:status;
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  padding:8px 10px;
+  margin:0;
+  border:1px solid var(--line);
+  border-radius:11px;
+  background:#0f0b13;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.35;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.composer-dock .composer .composer-bot-status.error{
+  color:#ffb1bd;
+  border-color:#7f3141;
+}
+.composer-dock .composer .composer-bot-status.thinking,
+.composer-dock .composer .composer-bot-status.replying{
+  color:var(--text);
+}
+.composer-dock .composer .bot-status-dot{
+  flex:0 0 auto;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  margin-top:.28em;
+  background:currentColor;
+  opacity:.75;
+}
+.composer-dock .composer .bot-status-text{
+  min-width:0;
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+}
 .composer-dock .composer .quick-actions{
   grid-area:quick;
   display:grid !important;
