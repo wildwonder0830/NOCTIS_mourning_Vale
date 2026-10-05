@@ -242,6 +242,124 @@ function setCastMemberInScene(member,present,ch=activeChat()){
   saveVault();
 }
 
+
+function normalizeSceneText(value=""){
+  return String(value||"").replace(/[’]/g,"'").replace(/\s+/g," ").trim();
+}
+
+function sceneMemberAliases(member){
+  const full=normalizeSceneText(member?.name).toLowerCase();
+  const first=full.split(/\s+/)[0]||full;
+  return [...new Set([full,first].filter(Boolean))];
+}
+
+function sentenceWindow(text,index,radius=120){
+  const start=Math.max(0,index-radius),end=Math.min(text.length,index+radius);
+  return text.slice(start,end);
+}
+
+function inferCastPresenceFromRecentMessages(c=activeCharacter(),ch=activeChat()){
+  if(!c||!ch)return false;
+  const members=allCastMembers(c);
+  if(!members.length)return false;
+  const convo=getConversationMessages(ch).slice(-18);
+  if(!convo.length)return false;
+
+  const current=new Set((ch.sceneCast||[]).map(x=>x?.castMemberId).filter(Boolean));
+  const state=new Map(members.map(m=>[m.id,current.has(m.id)]));
+  const confidence=new Map(members.map(m=>[m.id,0]));
+
+  const arrivalWords=/(?:entered|walked in|came in|stepped in|arrived|appeared|returned|joined|followed(?: them| her| him)? in|came through|opened the door and|crossed the threshold|stood in the doorway|was standing (?:there|inside)|sat beside|lay beside|curled around|held her|in his arms)/i;
+  const departureWords=/(?:left|departed|walked out|headed out|headed home|went home|drove away|disappeared outside|stepped outside|exited|went back to|returned to work|was gone|had gone|shut the door behind him)/i;
+  const remoteWords=/(?:phone|speaker|called|call from|texted|text message|voicemail|video call|facetime|on the line|through the phone|from the other end)/i;
+
+  convo.forEach((msg,msgIndex)=>{
+    const raw=normalizeSceneText(msg?.text);
+    const lower=raw.toLowerCase();
+    if(!raw)return;
+    members.forEach(member=>{
+      const aliases=sceneMemberAliases(member);
+      let bestIndex=-1;
+      for(const alias of aliases){
+        const i=lower.lastIndexOf(alias);
+        if(i>bestIndex)bestIndex=i;
+      }
+      if(bestIndex<0)return;
+      const nearby=sentenceWindow(lower,bestIndex,150);
+
+      if(departureWords.test(nearby)){
+        state.set(member.id,false);
+        confidence.set(member.id,3);
+        return;
+      }
+      if(arrivalWords.test(nearby) && !remoteWords.test(nearby)){
+        state.set(member.id,true);
+        confidence.set(member.id,3);
+        return;
+      }
+
+      /*
+        Recent assistant narration that actively uses a cast member is useful
+        presence evidence, but never treat phone/text-only contact as physical.
+      */
+      if(msg.role==="assistant" && !remoteWords.test(nearby)){
+        const recency=msgIndex>=convo.length-4?2:1;
+        if(recency>=confidence.get(member.id)){
+          state.set(member.id,true);
+          confidence.set(member.id,recency);
+        }
+      }
+    });
+  });
+
+  let changed=false;
+  members.forEach(member=>{
+    if(confidence.get(member.id)<=0)return;
+    const shouldBe=state.get(member.id);
+    const isNow=isCastMemberInScene(member,ch);
+    if(shouldBe!==isNow){
+      setCastMemberInScene(member,shouldBe,ch);
+      changed=true;
+    }
+  });
+  if(changed){
+    ch.scenePresenceSource="local-inference";
+    ch.scenePresenceUpdatedAt=now();
+  }
+  return changed;
+}
+
+function extractNoctisSceneMarker(text,c=activeCharacter(),ch=activeChat()){
+  const raw=String(text||"");
+  const rx=/\s*<!--\s*NOCTIS_SCENE\s*:\s*([\s\S]*?)-->\s*$/i;
+  const match=raw.match(rx);
+  if(!match)return {text:raw.trim(),found:false,names:[]};
+  const names=match[1].split("|").map(x=>x.trim()).filter(Boolean);
+  return {text:raw.replace(rx,"").trim(),found:true,names};
+}
+
+function applyNoctisSceneMarker(names,c=activeCharacter(),ch=activeChat()){
+  if(!c||!ch)return;
+  const members=allCastMembers(c);
+  const wanted=new Set();
+  const normalized=names.map(x=>normalizeSceneText(x).toLowerCase());
+  members.forEach(member=>{
+    const aliases=sceneMemberAliases(member);
+    if(normalized.some(n=>aliases.includes(n)))wanted.add(member.id);
+  });
+  members.forEach(member=>setCastMemberInScene(member,wanted.has(member.id),ch));
+  ch.scenePresenceSource="model-marker";
+  ch.scenePresenceUpdatedAt=now();
+  ch.scenePresenceNames=members.filter(m=>wanted.has(m.id)).map(m=>m.name);
+  saveVault();
+}
+
+window.NoctisScenePresence={
+  infer:inferCastPresenceFromRecentMessages,
+  extract:extractNoctisSceneMarker,
+  apply:applyNoctisSceneMarker
+};
+
 function castSheetFromImportedCharacter(src){
   if(!src||typeof src!=="object")throw new Error("That file does not contain a character sheet.");
   const name=String(src.name||src.char_name||src.character_name||"Imported Character").trim()||"Imported Character";
@@ -1463,6 +1581,7 @@ CAST PRESENCE RULES
 - Track each cast member separately: voice, knowledge, memories, relationship status, jealousy, promises, injuries, clothing, location, and physical position are never interchangeable.
 - When a scene transition adds or removes someone, update continuity naturally; never teleport cast members without an established arrival/departure.
 - If several cast members are present, label or write dialogue clearly enough that the user can always tell who spoke or acted.
+- At the END of every normal RP reply, append exactly one engine metadata marker in this format: <!--NOCTIS_SCENE: Full Name 1 | Full Name 2-->. List ONLY bot cast members physically present at the end of the reply. Do not list someone who is merely mentioned, texting, calling, on speakerphone, remembered, or off-scene. If no bot cast member is physically present, use <!--NOCTIS_SCENE: -->. This marker is stripped before display and is not story prose.
 
 ACTIVE USER PERSONA — CANON FOR THIS TIMELINE
 ${personaPrompt()}
@@ -1588,6 +1707,7 @@ function continuityGuardPrompt(){
 
 function apiMessages(extraSystem=""){
   const ch=activeChat();
+  inferCastPresenceFromRecentMessages(activeCharacter(),ch);
   const all=getConversationMessages(ch);
   let live;
   if(ch.consolidatedThroughMessageId){
@@ -1930,9 +2050,12 @@ async function generateReply(extraSystem="",replaceMessage=null){
       const index=messages.findLastIndex(m=>m.role==="assistant" && m.content===replaceMessage.text);
       if(index>=0)messages.splice(index,1);
     }
-    const reply=await openRouterRequest(messages);
+    const rawReply=await openRouterRequest(messages);
+    const sceneMeta=extractNoctisSceneMarker(rawReply,activeCharacter(),ch);
+    const reply=sceneMeta.text||rawReply.trim();
     if(replaceMessage){invalidateCompactMemory(ch,replaceMessage);ch.messages=ch.messages.filter(m=>m.id!==replaceMessage.id);}
     ch.messages.push({id:uid(),role:"assistant",text:reply,createdAt:now()});
+    if(sceneMeta.found)applyNoctisSceneMarker(sceneMeta.names,activeCharacter(),ch);
     ch.updatedAt=now();
     saveVault();
     renderMessages();
