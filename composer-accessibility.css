@@ -53,7 +53,9 @@
     grid-template-areas:
       "input"
       "send"
-      "quick" !important;
+      "status"
+      "quick"
+      "hint" !important;
   }
 
   #sendBtn {
