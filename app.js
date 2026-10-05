@@ -1758,8 +1758,11 @@ function apiMessages(extraSystem=""){
   if(extraSystem)out.push({role:"system",content:extraSystem});
   return out;
 }
-async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){
+async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperature=settings.temperature,requestOptions={}){
   if(!settings.apiKey)throw new Error("Add your OpenRouter API key in Settings first.");
+  const timeoutMs=Math.max(5000,Number(requestOptions?.timeoutMs)||45000);
+  const maxAttempts=Math.max(1,Math.min(3,Number(requestOptions?.maxAttempts)||3));
+  const retryBaseMs=Math.max(0,Number(requestOptions?.retryBaseMs)||700);
 
   const payload={
     model:settings.model||defaultSettings.model,
@@ -1771,11 +1774,11 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
 
   let lastError=null;
 
-  // Up to 3 tries with the SAME selected model.
-  // This preserves character consistency while smoothing over flaky free-provider responses.
-  for(let attempt=0;attempt<3;attempt++){
+  // Retries stay on the SAME selected model. Some actions (such as Continue)
+  // deliberately request a much shorter ceiling so the UI never hangs for minutes.
+  for(let attempt=0;attempt<maxAttempts;attempt++){
     const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),45000);
+    const timeout=setTimeout(()=>controller.abort(),timeoutMs);
 
     try{
       const response=await fetch("https://openrouter.ai/api/v1/chat/completions",{
@@ -1803,8 +1806,8 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
         // Some free providers occasionally return a successful envelope with no text.
         // Treat that as transient and quietly retry the SAME model.
         lastError=new Error("The provider returned an empty reply.");
-        if(attempt<2){
-          await new Promise(r=>setTimeout(r,700 + attempt*500));
+        if(attempt<maxAttempts-1){
+          await new Promise(r=>setTimeout(r,retryBaseMs + attempt*400));
           continue;
         }
         throw lastError;
@@ -1824,8 +1827,8 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       // Exhausted daily allowances cannot recover through immediate retries.
       if(/daily|per.day|per-day|free-models-per-day|insufficient credits|quota.*exceed/i.test(details))throw lastError;
 
-      if(attempt<2 && [408,429,500,502,503,504].includes(Number(response.status))){
-        await new Promise(r=>setTimeout(r,900 + attempt*500));
+      if(attempt<maxAttempts-1 && [408,429,500,502,503,504].includes(Number(response.status))){
+        await new Promise(r=>setTimeout(r,retryBaseMs + 200 + attempt*400));
         continue;
       }
 
@@ -1834,8 +1837,8 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       clearTimeout(timeout);
 
       if(err?.name==="AbortError"){
-        lastError=new Error("The model provider did not answer within 45 seconds.");
-        if(attempt<2){
+        lastError=new Error(`The model provider did not answer within ${Math.round(timeoutMs/1000)} seconds.`);
+        if(attempt<maxAttempts-1){
           await new Promise(r=>setTimeout(r,700 + attempt*500));
           continue;
         }
@@ -1843,8 +1846,8 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       }
 
       lastError=err;
-      if(attempt<2 && /fetch|network|load failed|empty reply/i.test(String(err?.message||err))){
-        await new Promise(r=>setTimeout(r,800 + attempt*500));
+      if(attempt<maxAttempts-1 && /fetch|network|load failed|empty reply/i.test(String(err?.message||err))){
+        await new Promise(r=>setTimeout(r,retryBaseMs + 100 + attempt*400));
         continue;
       }
 
@@ -1890,7 +1893,12 @@ async function generateDirectedContinuation(mode){
   try{
     const msgs=apiMessages();
     msgs.push({role:"system",content:instruction});
-    const reply=await openRouterRequest(msgs);
+    const reply=await openRouterRequest(
+      msgs,
+      Math.min(Number(settings.maxTokens||900),700),
+      settings.temperature,
+      {timeoutMs:20000,maxAttempts:2,retryBaseMs:450}
+    );
     ch.messages.push({id:uid(),role:"assistant",text:reply,continuationMode:mode});
     ch.updatedAt=now();
     saveVault();
