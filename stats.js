@@ -649,23 +649,29 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
   function injectComposerStatus(){
     const form=document.getElementById("chatForm");
     const send=document.getElementById("sendBtn");
-    if(!form||!send)return;
+    const input=document.getElementById("messageInput");
+    const quick=form?.querySelector(".quick-actions");
+    if(!form||!send||!input)return;
 
-    let wrap=document.getElementById("sendStatusColumn");
-    if(!wrap){
-      wrap=document.createElement("div");
-      wrap.id="sendStatusColumn";
-      wrap.className="send-status-column";
-      send.parentNode.insertBefore(wrap,send);
-      wrap.appendChild(send);
+    /* Undo the old narrow send-column wrapper if an earlier cached build
+       created it. The Send button belongs directly in the composer grid. */
+    const oldWrap=document.getElementById("sendStatusColumn");
+    if(oldWrap){
+      oldWrap.parentNode?.insertBefore(send,oldWrap);
+      oldWrap.remove();
     }
 
-    if(!document.getElementById("composerBotStatus")){
-      const status=document.createElement("div");
+    let status=document.getElementById("composerBotStatus");
+    if(!status){
+      status=document.createElement("div");
       status.id="composerBotStatus";
       status.className="composer-bot-status waiting";
       status.innerHTML='<span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>';
-      wrap.appendChild(status);
+    }
+
+    if(status.parentNode!==form){
+      if(quick)form.insertBefore(status,quick);
+      else form.appendChild(status);
     }
   }
 
