@@ -252,13 +252,26 @@
     const src=parsed?.persona&&typeof parsed.persona==="object"?parsed.persona:parsed;
     if(!src || typeof src!=="object" || !src.name)throw new Error("That file is not a Noctis persona.");
     ensurePersonas(vault);
-    const requested=Number(parsed?.targetSlot??parsed?.slot??src?.targetSlot??src?.slot);
-    const p=Number.isInteger(requested)&&requested>=1&&requested<=6
-      ?vault.personas.find(x=>Number(x.slot)===requested)
-      :activePersona();
+    /*
+      PERSONA IMPORT TARGET SAFETY
+      ----------------------------
+      The user's currently selected Persona slot is authoritative.
+      Embedded targetSlot/slot metadata in an imported file is only a fallback
+      for legacy/headless imports where no valid active Persona can be resolved.
+      A file must never silently redirect an import away from the slot the user
+      deliberately selected in the UI.
+    */
+    const selected=activePersona();
+    const embedded=Number(parsed?.targetSlot??parsed?.slot??src?.targetSlot??src?.slot);
+    const p=(selected&&Number.isInteger(Number(selected.slot))&&Number(selected.slot)>=1&&Number(selected.slot)<=6)
+      ?selected
+      :(Number.isInteger(embedded)&&embedded>=1&&embedded<=6
+        ?vault.personas.find(x=>Number(x.slot)===embedded)
+        :null);
     if(!p)throw new Error("Could not resolve a persona slot.");
 
     const targetSlot=Number(p.slot);
+    const embeddedTarget=Number.isInteger(embedded)&&embedded>=1&&embedded<=6?embedded:null;
     const before=copy(vault.personas);
     const protectedKeys=new Set(["id","slot"]);
     try{
@@ -292,7 +305,10 @@
       const imported=vault.personas.find(x=>Number(x.slot)===targetSlot);
       activeChat().activePersonaId=imported.id;
       saveVault();renderAll();
-      alert(`Imported ${imported.name||"persona"} into Persona Slot ${imported.slot}, including detailed profile fields. Other persona slots were preserved.`);
+      const redirectNote=embeddedTarget&&embeddedTarget!==targetSlot
+        ?` File metadata requested Slot ${embeddedTarget}, but your selected Slot ${targetSlot} was used instead.`
+        :"";
+      alert(`Imported ${imported.name||"persona"} into selected Persona Slot ${imported.slot}. Other persona slots were preserved.${redirectNote}`);
       return imported;
     }catch(err){
       vault.personas=before;
