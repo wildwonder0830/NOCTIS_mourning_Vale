@@ -303,17 +303,7 @@ function inferCastPresenceFromRecentMessages(c=activeCharacter(),ch=activeChat()
         cast member to be performing an in-scene physical/speech action.
       */
       if(msg.role==="assistant" && !remoteWords.test(nearby)){
-        const escaped=aliases.map(a=>a.replace(/[.*+?^$()|[\]\\]/g,"\\      /*
-        Recent assistant narration that actively uses a cast member is useful
-        presence evidence, but never treat phone/text-only contact as physical.
-      */
-      if(msg.role==="assistant" && !remoteWords.test(nearby)){
-        const recency=msgIndex>=convo.length-4?2:1;
-        if(recency>=confidence.get(member.id)){
-          state.set(member.id,true);
-          confidence.set(member.id,recency);
-        }
-      }")).sort((a,b)=>b.length-a.length);
+        const escaped=aliases.map(a=>a.replace(/[.*+?^$()|[\]\\]/g,"\\$&")).sort((a,b)=>b.length-a.length);
         const actor=new RegExp(`(?:^|[.!?]\\s+|\\n)\\s*(?:${escaped.join("|")})\\s+(?:said|asked|answered|replied|murmured|whispered|laughed|smiled|looked|watched|turned|stood|sat|lay|leaned|walked|stepped|moved|reached|touched|caught|held|pulled|pushed|kissed|nodded|shook|paused|stopped|breathed|exhaled|inhaled|opened|closed|picked|set|placed|crossed|followed|noticed|felt|glanced|grinned|frowned|sighed|growled|spoke)\\b`,"i");
         if(actor.test(lower)){
           const recency=msgIndex>=convo.length-4?2:1;
