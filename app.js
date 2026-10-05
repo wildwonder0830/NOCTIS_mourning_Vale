@@ -830,13 +830,34 @@ function activeChat(){
   if(!Array.isArray(ch.milestones))ch.milestones=[];
   return ch;
 }
-function selectTab(name){
-  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
-  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===name));
-  window.scrollTo({top:0,behavior:"smooth"});
+const LAST_TAB_KEY="noctis-last-selected-tab";
+
+function availableTabNames(){
+  return [...document.querySelectorAll(".tab")].map(b=>String(b.dataset.tab||"")).filter(Boolean);
+}
+
+function selectTab(name,{remember=true,scroll=true}={}){
+  const available=availableTabNames();
+  const safeName=available.includes(name)?name:(available.includes("library")?"library":available[0]);
+  if(!safeName)return;
+
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===safeName));
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.dataset.view===safeName));
+
+  if(remember){
+    try{localStorage.setItem(LAST_TAB_KEY,safeName)}catch(_){}
+  }
+  if(scroll)window.scrollTo({top:0,behavior:"smooth"});
   requestAnimationFrame(updateScrollBottomButton);
 }
+
 document.querySelectorAll(".tab").forEach(btn=>btn.addEventListener("click",()=>selectTab(btn.dataset.tab)));
+
+function restoreLastSelectedTab(){
+  let saved="";
+  try{saved=localStorage.getItem(LAST_TAB_KEY)||""}catch(_){}
+  selectTab(saved,{remember:false,scroll:false});
+}
 
 function renderLibrary(){
   const list=$("characterList");list.innerHTML="";
@@ -2397,5 +2418,5 @@ if($("commitRescueBtn"))$("commitRescueBtn").addEventListener("click",()=>{
   selectTab("chat");
 });
 
-function renderAll(){normalizeVaultV07();renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList()}
+function renderAll(){normalizeVaultV07();renderLibrary();renderBasics();renderPersonas();renderPersonaFields();renderPersonaBadge();renderContextLists();renderMilestones();renderConsolidatedMemory();renderMessages();renderChatList();restoreLastSelectedTab()}
 bindBasics();bindPersonaFields();renderAll();saveVault();
