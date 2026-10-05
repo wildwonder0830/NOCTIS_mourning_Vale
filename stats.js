@@ -732,6 +732,11 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
   });
   document.getElementById("addBeatBtn")?.addEventListener("click",addBeat);
 
+  window.addEventListener("noctis:scene-cast-updated",()=>{
+    try{renderCast()}catch(_){}
+    try{renderStats()}catch(_){}
+  });
+
   renderStats();
   safeBoldActions(document.getElementById("messages"));
 })();
