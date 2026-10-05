@@ -1797,7 +1797,12 @@ async function openRouterRequest(messages,maxTokens=settings.maxTokens,temperatu
       const data=await response.json().catch(()=>({}));
 
       if(response.ok){
-        const text=data?.choices?.[0]?.message?.content;
+        const choice=data?.choices?.[0]||{};
+        const text=choice?.message?.content;
+        if(requestOptions?.meta && typeof requestOptions.meta==="object"){
+          requestOptions.meta.finishReason=String(choice?.finish_reason||"");
+          requestOptions.meta.providerModel=String(data?.model||payload.model||"");
+        }
 
         if(text && String(text).trim()){
           return String(text).trim();
@@ -2100,7 +2105,48 @@ async function generateReply(extraSystem="",replaceMessage=null){
       const index=messages.findLastIndex(m=>m.role==="assistant" && m.content===replaceMessage.text);
       if(index>=0)messages.splice(index,1);
     }
-    const rawReply=await openRouterRequest(messages);
+    const requestMeta={};
+    const normalReplyTokens=Math.max(Number(settings.maxTokens||900),1400);
+    let rawReply=await openRouterRequest(
+      messages,
+      normalReplyTokens,
+      settings.temperature,
+      {meta:requestMeta}
+    );
+
+    /*
+      NORMAL REPLY TRUNCATION SAFETY
+      ------------------------------
+      If the provider stops because max_tokens was exhausted, finish the SAME
+      assistant turn automatically. The user should never have to press
+      Continue merely because Noctis silently hit an output ceiling.
+    */
+    let stitchCount=0;
+    while(requestMeta.finishReason==="length" && stitchCount<2){
+      stitchCount++;
+      $("connectionStatus").textContent="finishing reply…";
+      const stitchMeta={};
+      const stitchMessages=[
+        ...messages,
+        {role:"assistant",content:rawReply},
+        {role:"system",content:
+          "ENGINE-ONLY TRUNCATION RECOVERY: The previous assistant response was cut off only because the provider hit its output-token limit. Continue EXACTLY from the cutoff point. Do not restart, recap, repeat, or rephrase material already written. Finish the same NPC/world turn naturally and stop at the next point where the user's protagonist must respond. Preserve protagonist agency. Append the required <!--NOCTIS_SCENE: ...--> marker only when the complete turn is finished."
+        }
+      ];
+      const tail=await openRouterRequest(
+        stitchMessages,
+        normalReplyTokens,
+        settings.temperature,
+        {meta:stitchMeta,timeoutMs:45000,maxAttempts:2,retryBaseMs:500}
+      );
+      rawReply=(rawReply.trimEnd()+" "+tail.trimStart()).trim();
+      requestMeta.finishReason=stitchMeta.finishReason;
+    }
+
+    if(requestMeta.finishReason==="length"){
+      throw new Error("The model response exceeded Noctis's automatic reply-completion ceiling.");
+    }
+
     const sceneMeta=extractNoctisSceneMarker(rawReply,activeCharacter(),ch);
     const reply=sceneMeta.text||rawReply.trim();
     if(replaceMessage){invalidateCompactMemory(ch,replaceMessage);ch.messages=ch.messages.filter(m=>m.id!==replaceMessage.id);}
