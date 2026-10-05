@@ -1485,11 +1485,18 @@ function scheduleScrollUpdate(){
 window.addEventListener("scroll",scheduleScrollUpdate,{passive:true});
 messagesEl?.addEventListener("scroll",scheduleScrollUpdate,{passive:true});
 let renderedChatId=null;
+let renderedLastMessageId=null;
 
 function renderMessages(){
   const c=activeCharacter(),ch=activeChat();
   const previousTop=messagesEl.scrollTop;
-  const followLatest=renderedChatId!==ch.id || isMessagesNearBottom();
+  const switchingChats=renderedChatId!==ch.id;
+  const followLatest=switchingChats || isMessagesNearBottom();
+  const latestVisible=[...(ch.messages||[])].reverse().find(msg=>!(msg.error && /^Connection error: Rate limit exceeded/i.test(msg.text||"")));
+  const newAssistantArrived=!switchingChats
+    && latestVisible?.role==="assistant"
+    && !!latestVisible?.id
+    && latestVisible.id!==renderedLastMessageId;
   renderedChatId=ch.id;
   messagesEl.innerHTML="";
   ch.messages.forEach((msg,index)=>{
@@ -1533,7 +1540,27 @@ function renderMessages(){
     messagesEl.appendChild(wrap);
   });
   window.NoctisStoryPresentation?.decorate(messagesEl,ch);
-  messagesEl.scrollTop=followLatest?messagesEl.scrollHeight:previousTop;
+
+  /*
+    NEW REPLY READING POSITION
+    --------------------------
+    When a fresh assistant reply arrives, start the reader at the top of that
+    reply instead of forcing the viewport to its final line. Preserve normal
+    scroll position for unrelated re-renders and the existing behavior when
+    switching timelines.
+  */
+  if(newAssistantArrived){
+    const target=messagesEl.querySelector(`[data-message-id="${CSS.escape(latestVisible.id)}"]`);
+    if(target){
+      const top=Math.max(0,target.offsetTop-messagesEl.offsetTop-8);
+      messagesEl.scrollTop=top;
+    }else{
+      messagesEl.scrollTop=followLatest?messagesEl.scrollHeight:previousTop;
+    }
+  }else{
+    messagesEl.scrollTop=followLatest?messagesEl.scrollHeight:previousTop;
+  }
+  renderedLastMessageId=latestVisible?.id||null;
   lastMessageY=messagesEl.scrollTop;
   updateScrollBottomButton();
 }
