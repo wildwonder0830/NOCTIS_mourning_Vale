@@ -299,6 +299,11 @@ function inferCastPresenceFromRecentMessages(c=activeCharacter(),ch=activeChat()
       }
 
       /*
+        A mere name reference does NOT establish physical presence. Require the
+        cast member to be performing an in-scene physical/speech action.
+      */
+      if(msg.role==="assistant" && !remoteWords.test(nearby)){
+        const escaped=aliases.map(a=>a.replace(/[.*+?^$()|[\]\\]/g,"\\      /*
         Recent assistant narration that actively uses a cast member is useful
         presence evidence, but never treat phone/text-only contact as physical.
       */
@@ -307,6 +312,15 @@ function inferCastPresenceFromRecentMessages(c=activeCharacter(),ch=activeChat()
         if(recency>=confidence.get(member.id)){
           state.set(member.id,true);
           confidence.set(member.id,recency);
+        }
+      }")).sort((a,b)=>b.length-a.length);
+        const actor=new RegExp(`(?:^|[.!?]\\s+|\\n)\\s*(?:${escaped.join("|")})\\s+(?:said|asked|answered|replied|murmured|whispered|laughed|smiled|looked|watched|turned|stood|sat|lay|leaned|walked|stepped|moved|reached|touched|caught|held|pulled|pushed|kissed|nodded|shook|paused|stopped|breathed|exhaled|inhaled|opened|closed|picked|set|placed|crossed|followed|noticed|felt|glanced|grinned|frowned|sighed|growled|spoke)\\b`,"i");
+        if(actor.test(lower)){
+          const recency=msgIndex>=convo.length-4?2:1;
+          if(recency>=confidence.get(member.id)){
+            state.set(member.id,true);
+            confidence.set(member.id,recency);
+          }
         }
       }
     });
@@ -1583,7 +1597,6 @@ CAST PRESENCE RULES
 - Track each cast member separately: voice, knowledge, memories, relationship status, jealousy, promises, injuries, clothing, location, and physical position are never interchangeable.
 - When a scene transition adds or removes someone, update continuity naturally; never teleport cast members without an established arrival/departure.
 - If several cast members are present, label or write dialogue clearly enough that the user can always tell who spoke or acted.
-- At the END of every normal RP reply, append exactly one engine metadata marker in this format: <!--NOCTIS_SCENE: Full Name 1 | Full Name 2-->. List ONLY bot cast members physically present at the end of the reply. Do not list someone who is merely mentioned, texting, calling, on speakerphone, remembered, or off-scene. If no bot cast member is physically present, use <!--NOCTIS_SCENE: -->. This marker is stripped before display and is not story prose.
 
 ACTIVE USER PERSONA — CANON FOR THIS TIMELINE
 ${personaPrompt()}
@@ -2047,6 +2060,7 @@ async function generateReply(extraSystem="",replaceMessage=null){
   $("connectionStatus").textContent="thinking…";
   try{
     const messages=apiMessages(extraSystem);
+    messages.push({role:"system",content:"ENGINE-ONLY SCENE PRESENCE REPORT: At the END of this RP reply append exactly one marker: <!--NOCTIS_SCENE: Full Name 1 | Full Name 2-->. List ONLY bot cast members physically present at the end of the reply. Do not list someone merely mentioned, remembered, texting, calling, on speakerphone, or off-scene. If none are physically present use <!--NOCTIS_SCENE: -->. Do not refer to this marker in story prose."});
     if(replaceMessage){
       // Regeneration replaces the old reply only after a successful response.
       const index=messages.findLastIndex(m=>m.role==="assistant" && m.content===replaceMessage.text);
