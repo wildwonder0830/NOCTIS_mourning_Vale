@@ -832,12 +832,12 @@ function activeChat(){
 }
 const LAST_TAB_KEY="noctis-last-selected-tab";
 
-function availableTabNames(){
-  return [...document.querySelectorAll(".tab")].map(b=>String(b.dataset.tab||"")).filter(Boolean);
+function availableViewNames(){
+  return [...document.querySelectorAll(".view")].map(v=>String(v.dataset.view||"")).filter(Boolean);
 }
 
 function selectTab(name,{remember=true,scroll=true}={}){
-  const available=availableTabNames();
+  const available=availableViewNames();
   const safeName=available.includes(name)?name:(available.includes("library")?"library":available[0]);
   if(!safeName)return;
 
