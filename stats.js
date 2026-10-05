@@ -623,7 +623,7 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
   /* Sanitize main-RP model output before it is saved, so star-soup cannot
      keep reappearing even if the model ignores the formatting instruction. */
   const baseOpenRouterForFormat=openRouterRequest;
-  openRouterRequest=async function(messages,maxTokens=settings.maxTokens,temperature=settings.temperature){
+  openRouterRequest=async function(messages,maxTokens=settings.maxTokens,temperature=settings.temperature,requestOptions={}){
     const sys=Array.isArray(messages)?messages.map(m=>String(m?.content||"")).join("\n"):"";
     const isPhone=/PHONE\s*\/\s*TEXT MESSAGE MODE/i.test(sys);
     const isJson=/strict JSON|Return ONLY valid JSON|Return strict JSON/i.test(sys);
@@ -631,7 +631,7 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
 
     setComposerState("thinking","Thinking…");
     try{
-      const raw=await baseOpenRouterForFormat(messages,maxTokens,temperature);
+      const raw=await baseOpenRouterForFormat(messages,maxTokens,temperature,requestOptions);
       setComposerState("replying","Replying…");
       const out=isMain?sanitizeRepetitiveCadence(sanitizeForbiddenShifterAnatomy(stripMessySingleStars(raw))):raw;
       setTimeout(()=>setComposerState("waiting","Waiting"),260);
