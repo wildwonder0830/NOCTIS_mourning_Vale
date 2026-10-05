@@ -1895,7 +1895,7 @@ async function generateDirectedContinuation(mode){
     msgs.push({role:"system",content:instruction});
     const reply=await openRouterRequest(
       msgs,
-      Math.min(Number(settings.maxTokens||900),700),
+      Number(settings.maxTokens||900),
       settings.temperature,
       {timeoutMs:30000,maxAttempts:1,retryBaseMs:0}
     );
