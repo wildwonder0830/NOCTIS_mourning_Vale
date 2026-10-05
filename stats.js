@@ -1,6 +1,6 @@
 /* Noctis Mourning Vale v0.9.0 — Story Stats + RP formatting */
 (() => {
-  const BUILD = "0.12.0";
+  const BUILD = window.NOCTIS_CURRENT_BUILD||"0.17.28";
   const COUNTERS = [
     ["sex","Sex"],
     ["kisses","Kisses"],
@@ -187,7 +187,6 @@
     }
     renderCounters();renderCast();renderBeatLog();
     if(typeof renderCastMemberTabs==="function")renderCastMemberTabs();
-    const badge=document.getElementById("buildBadge");if(badge)badge.textContent="v"+BUILD;
   }
   window.renderStats=renderStats;
 
@@ -650,28 +649,25 @@ Sexual anatomy is human/humanoid. Never use "knot", "knotting", "tie", "bulbus g
     const form=document.getElementById("chatForm");
     const send=document.getElementById("sendBtn");
     const input=document.getElementById("messageInput");
-    const quick=form?.querySelector(".quick-actions");
     if(!form||!send||!input)return;
 
-    /* Undo the old narrow send-column wrapper if an earlier cached build
-       created it. The Send button belongs directly in the composer grid. */
+    /* Clean up the obsolete narrow Send-column wrapper from cached builds. */
     const oldWrap=document.getElementById("sendStatusColumn");
     if(oldWrap){
       oldWrap.parentNode?.insertBefore(send,oldWrap);
       oldWrap.remove();
     }
 
-    let status=document.getElementById("composerBotStatus");
-    if(!status){
-      status=document.createElement("div");
+    /* v0.17.28+ ships this directly in index.html. This branch is only a
+       backward-compatible fallback if an older cached document is still open. */
+    if(!document.getElementById("composerBotStatus")){
+      const status=document.createElement("div");
       status.id="composerBotStatus";
       status.className="composer-bot-status waiting";
+      status.setAttribute("role","status");
+      status.setAttribute("aria-live","polite");
       status.innerHTML='<span class="bot-status-dot"></span><span class="bot-status-text">Waiting</span>';
-    }
-
-    if(status.parentNode!==form){
-      if(quick)form.insertBefore(status,quick);
-      else form.appendChild(status);
+      input.insertAdjacentElement("afterend",status);
     }
   }
 
